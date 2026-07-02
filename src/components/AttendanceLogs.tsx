@@ -168,6 +168,8 @@ export default function AttendanceLogs() {
           'Sai Lệch (m)': Math.round(log.distance),
           'Tình Trạng Trễ': log.isLate ? 'Muộn ca' : 'Đúng giờ',
           'Lý Do Muộn': log.lateReason || '',
+          'Điều Động Tạm Thời': log.isTemporary ? 'Có (Điều động)' : 'Không',
+          'Ghi Chú Điều Động': log.note || '',
           'Tọa Độ Ghi Nhận': `${log.latitude}, ${log.longitude}`
         };
       });
@@ -188,6 +190,8 @@ export default function AttendanceLogs() {
         { wch: 15 }, // Sai lệch
         { wch: 15 }, // Tình trạng
         { wch: 30 }, // Lý do muộn
+        { wch: 18 }, // Điều động tạm thời
+        { wch: 45 }, // Ghi chú điều động
         { wch: 25 }  // Tọa độ
       ];
       worksheet['!cols'] = colWidths;
@@ -452,12 +456,22 @@ export default function AttendanceLogs() {
 
                       {/* Worksite */}
                       <td className="py-3.5 px-4">
-                        <div className="text-sm font-bold text-slate-800">
-                          {log.locationName || 'Chưa rõ'}
+                        <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                          <span>{log.locationName || 'Chưa rõ'}</span>
+                          {log.isTemporary && (
+                            <span className="inline-flex items-center px-1.5 py-0.2 bg-indigo-55 text-indigo-750 border border-indigo-150 text-[9px] font-black rounded-md uppercase tracking-wider">
+                              Điều động
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono">
                           {log.latitude.toFixed(5)}, {log.longitude.toFixed(5)}
                         </div>
+                        {log.isTemporary && log.note && (
+                          <div className="text-[10px] text-indigo-600 font-semibold mt-0.5 max-w-[240px] leading-relaxed italic" title={log.note}>
+                            {log.note}
+                          </div>
+                        )}
                       </td>
 
                       {/* Check-in / Check-out tag */}
