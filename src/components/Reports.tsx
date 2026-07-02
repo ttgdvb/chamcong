@@ -145,6 +145,11 @@ export default function Reports() {
                           Ca {log.shift}
                         </span>
                       )}
+                      {log.isTemporary && (
+                        <span className="px-1 py-0.2 bg-indigo-50 text-indigo-750 border border-indigo-150 text-[9px] font-black rounded uppercase tracking-wider" title={log.note}>
+                          Điều động
+                        </span>
+                      )}
                     </div>
                   </div>
 
