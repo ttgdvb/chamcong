@@ -15,14 +15,8 @@ export default function App() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Clear all previous info and set up exactly 1 Admin account on first load
-        const hasReset = localStorage.getItem('db_reset_v4');
-        if (hasReset !== 'true') {
-          await resetDatabase();
-          localStorage.setItem('db_reset_v4', 'true');
-        } else {
-          await seedDatabaseIfEmpty();
-        }
+        // 1. Đảm bảo dữ liệu mẫu tồn tại nếu database trống (không reset database dùng chung)
+        await seedDatabaseIfEmpty();
 
         // 2. Load stored user session if available
         const storedUser = localStorage.getItem('gps_attendance_user');
