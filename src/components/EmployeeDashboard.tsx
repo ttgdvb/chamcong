@@ -233,6 +233,12 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
     setMsg(null);
 
     try {
+      const defaultLoc = locations.find(l => l.id === employee.locationId);
+      const isTemp = assignedLoc.id !== employee.locationId;
+      const tempNote = isTemp 
+        ? `Điều động tạm thời tại ${assignedLoc.name} (Cơ sở chính: ${defaultLoc?.name || employee.locationId})`
+        : '';
+
       const logData = {
         employeeId: employee.id,
         employeeName: employee.fullName,
@@ -245,7 +251,9 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
         distance: distance || 0,
         isLate: type === 'checkin' ? isLate : false,
         lateReason: type === 'checkin' && isLate ? lateReason.trim() : '',
-        shift: selectedShift
+        shift: selectedShift,
+        isTemporary: isTemp,
+        note: tempNote
       };
 
       await addCheckinLog(logData);
@@ -469,6 +477,46 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
                 Điểm danh ca làm việc
               </h3>
 
+              {/* Today's Working Location Selector */}
+              <div className="mb-4">
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                  Địa điểm làm việc hôm nay *
+                </label>
+                <select
+                  value={assignedLoc?.id || ''}
+                  onChange={(e) => {
+                    const found = locations.find(l => l.id === e.target.value);
+                    if (found) {
+                      setAssignedLoc(found);
+                      if (found.shiftStartTimes && found.shiftStartTimes.length > 0) {
+                        setSelectedShift(found.shiftStartTimes[0]);
+                      } else {
+                        setSelectedShift('');
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                >
+                  {locations.map((loc) => {
+                    const isDefault = loc.id === employee.locationId;
+                    return (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name} {isDefault ? ' (Cơ sở chính)' : ' (Điều động tạm thời)'}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {assignedLoc && assignedLoc.id !== employee.locationId && (
+                  <div className="mt-2.5 p-3 bg-indigo-50 border border-indigo-150 rounded-xl flex items-start gap-1.5 text-[11px] text-indigo-800 font-medium leading-relaxed">
+                    <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                    <p>
+                      Bạn đang chọn làm việc tại <strong className="font-extrabold">{assignedLoc.name}</strong> (Khác với cơ sở chính <strong>{locations.find(l => l.id === employee.locationId)?.name || employee.locationId}</strong>). Hệ thống sẽ tự động ghi chú "Điều động tạm thời" vào nhật ký chấm công.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Shift Selector */}
               {assignedLoc && assignedLoc.shiftStartTimes && assignedLoc.shiftStartTimes.length > 0 && (
                 <div className="mb-4">
@@ -642,6 +690,13 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
                       {log.isLate && (
                         <div className="flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-100 w-fit">
                           <span>⚠️ Trễ ca. Lý do: "{log.lateReason || 'Không ghi rõ'}"</span>
+                        </div>
+                      )}
+
+                      {log.isTemporary && log.note && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-xl border border-indigo-150 w-fit font-medium">
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                          <span>{log.note}</span>
                         </div>
                       )}
                     </div>
