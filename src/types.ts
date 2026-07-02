@@ -30,4 +30,6 @@ export interface CheckinLog {
   isLate: boolean;
   lateReason?: string;
   shift?: string; // Selected shift name/time, e.g. "08:00"
+  isTemporary?: boolean;
+  note?: string;
 }
