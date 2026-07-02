@@ -1,0 +1,10 @@
+{
+  "name": "GPS Attendance System",
+  "description": "Hệ thống điểm danh Check-in/Check-out bằng GPS cho nhân viên với bán kính giới hạn và bảng điều khiển quản trị.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "Location": {
+      "title": "Location",
+      "description": "A physical office or workplace location with GPS coordinate fence.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "radius": { "type": "number" },
+        "shiftStartTimes": { "type": "array" }
+      },
+      "required": ["id", "code", "name", "latitude", "longitude", "radius"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "An employee profile used for custom login and tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "locationId": { "type": "string" },
+        "status": { "type": "string" },
+        "isAdmin": { "type": "boolean" }
+      },
+      "required": ["id", "fullName", "locationId", "status", "isAdmin"]
+    },
+    "CheckinLog": {
+      "title": "CheckinLog",
+      "description": "A log of check-in or check-out attendance events.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "locationName": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "status": { "type": "string" },
+        "type": { "type": "string" },
+        "distance": { "type": "number" },
+        "isLate": { "type": "boolean" },
+        "lateReason": { "type": "string" }
+      },
+      "required": ["employeeId", "timestamp", "latitude", "longitude", "status", "type", "distance", "isLate"]
+    }
+  },
+  "firestore": {
+    "/locations/{locationId}": {
+      "schema": "Location",
+      "description": "The workplace locations."
+    },
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Employee profiles."
+    },
+    "/checkin_logs/{logId}": {
+      "schema": "CheckinLog",
+      "description": "The check-in/out attendance logs."
+    }
+  }
+}
