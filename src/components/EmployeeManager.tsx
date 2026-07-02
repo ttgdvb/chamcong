@@ -30,6 +30,8 @@ export default function EmployeeManager({ currentAdmin }: EmployeeManagerProps) 
   const [filterRole, setFilterRole] = useState<string>('all');
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteBulkTargets, setDeleteBulkTargets] = useState<string[] | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Bulk Import States
@@ -304,6 +306,9 @@ export default function EmployeeManager({ currentAdmin }: EmployeeManagerProps) 
       setEmployees(empData);
       setLocations(locData);
       
+      const empIds = empData.map(e => e.id);
+      setSelectedIds(prev => prev.filter(id => empIds.includes(id)));
+      
       if (locData.length > 0 && !locationId) {
         setLocationId(locData[0].id);
       }
@@ -387,10 +392,26 @@ export default function EmployeeManager({ currentAdmin }: EmployeeManagerProps) 
     setIsDeleting(true);
     try {
       await deleteEmployee(deleteTargetId);
+      setSelectedIds(prev => prev.filter(id => id !== deleteTargetId));
       await fetchData();
       setDeleteTargetId(null);
     } catch (err: any) {
       setError('Lỗi khi xóa nhân sự: ' + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const confirmDeleteBulk = async () => {
+    if (!deleteBulkTargets || deleteBulkTargets.length === 0) return;
+    setIsDeleting(true);
+    try {
+      await Promise.all(deleteBulkTargets.map(id => deleteEmployee(id)));
+      await fetchData();
+      setSelectedIds([]);
+      setDeleteBulkTargets(null);
+    } catch (err: any) {
+      setError('Lỗi khi xóa hàng loạt nhân sự: ' + err.message);
     } finally {
       setIsDeleting(false);
     }
@@ -654,6 +675,53 @@ export default function EmployeeManager({ currentAdmin }: EmployeeManagerProps) 
             </div>
           </div>
 
+          {/* Chọn tất cả & Thao tác hàng loạt */}
+          {!loading && filteredEmployees.length > 0 && (
+            <div className="flex items-center justify-between py-2 px-3 bg-slate-50 border border-slate-150 rounded-xl mb-3 text-xs gap-3 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-650">
+                <input
+                  type="checkbox"
+                  checked={filteredEmployees.length > 0 && filteredEmployees.filter(e => e.id.toUpperCase() !== 'ADMIN').every(e => selectedIds.includes(e.id))}
+                  onChange={(e) => {
+                    const deletableEmployees = filteredEmployees.filter(emp => emp.id.toUpperCase() !== 'ADMIN');
+                    if (e.target.checked) {
+                      const allDeletableIds = deletableEmployees.map(emp => emp.id);
+                      setSelectedIds(prev => Array.from(new Set([...prev, ...allDeletableIds])));
+                    } else {
+                      const deletableIds = deletableEmployees.map(emp => emp.id);
+                      setSelectedIds(prev => prev.filter(id => !deletableIds.includes(id)));
+                    }
+                  }}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                />
+                <span>Chọn tất cả ({filteredEmployees.filter(e => e.id.toUpperCase() !== 'ADMIN').length})</span>
+              </label>
+
+              {selectedIds.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 text-[11px] font-bold">
+                    Đã chọn <strong className="text-indigo-600 font-extrabold">{selectedIds.length}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteBulkTargets(selectedIds)}
+                    className="py-1 px-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-650 font-bold text-[10px] rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Xóa các mục đã chọn</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds([])}
+                    className="py-1 px-2 bg-slate-200 hover:bg-slate-250 text-slate-650 font-bold text-[10px] rounded-lg transition-all cursor-pointer"
+                  >
+                    Bỏ chọn
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div className="text-center py-8 text-slate-500 text-xs">
               Đang tải danh sách nhân sự...
@@ -664,62 +732,87 @@ export default function EmployeeManager({ currentAdmin }: EmployeeManagerProps) 
             </div>
           ) : (
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-              {filteredEmployees.map((emp) => (
-                <div
-                  key={emp.id}
-                  className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-150 hover:border-slate-200 transition-all"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-bold rounded-md">
-                        {emp.id}
-                      </span>
-                      <h4 className="font-extrabold text-slate-800 text-sm">{emp.fullName}</h4>
-                      {emp.isAdmin && (
-                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[9px] font-bold rounded-md border border-amber-150">
-                          <Shield className="h-2.5 w-2.5 animate-pulse" />
-                          Admin
-                        </span>
+              {filteredEmployees.map((emp) => {
+                const isDeletable = emp.id.toUpperCase() !== 'ADMIN';
+                const isSelected = selectedIds.includes(emp.id);
+                return (
+                  <div
+                    key={emp.id}
+                    className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                      isSelected ? 'border-indigo-300 bg-indigo-50/20' : 'bg-slate-50 border-slate-150 hover:border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {isDeletable && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedIds(prev => [...prev, emp.id]);
+                            } else {
+                              setSelectedIds(prev => prev.filter(id => id !== emp.id));
+                            }
+                          }}
+                          className="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                        />
+                      )}
+                      {!isDeletable && (
+                        <div className="w-4 h-4 mt-1 shrink-0" />
+                      )}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-bold rounded-md">
+                            {emp.id}
+                          </span>
+                          <h4 className="font-extrabold text-slate-800 text-sm">{emp.fullName}</h4>
+                          {emp.isAdmin && (
+                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[9px] font-bold rounded-md border border-amber-150">
+                              <Shield className="h-2.5 w-2.5 animate-pulse" />
+                              Admin
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-550">
+                          Văn phòng: <span className="font-extrabold text-slate-750">{getLocationName(emp.locationId)}</span>
+                        </p>
+                        <div>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase border ${
+                            emp.status === 'active'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                              : 'bg-rose-50 text-rose-700 border-rose-100'
+                          }`}>
+                            {emp.status === 'active' ? 'Hoạt động' : 'Dừng hoạt động'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 ml-4 shrink-0">
+                      {/* Only allow editing ADMIN if current logged-in user is Super Admin */}
+                      {!(emp.id.toUpperCase() === 'ADMIN' && !isSuperAdminLoggedIn) && (
+                        <button
+                          onClick={() => handleEdit(emp)}
+                          className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-all cursor-pointer"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      {/* No one can delete the Super Admin (ADMIN) */}
+                      {isDeletable && (
+                        <button
+                          onClick={() => handleDelete(emp.id)}
+                          className="p-1.5 hover:bg-red-50 text-red-650 rounded-lg transition-all cursor-pointer"
+                          title="Xóa"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       )}
                     </div>
-                    <p className="text-xs text-slate-550">
-                      Văn phòng: <span className="font-extrabold text-slate-750">{getLocationName(emp.locationId)}</span>
-                    </p>
-                    <div>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase border ${
-                        emp.status === 'active'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                          : 'bg-rose-50 text-rose-700 border-rose-100'
-                      }`}>
-                        {emp.status === 'active' ? 'Hoạt động' : 'Dừng hoạt động'}
-                      </span>
-                    </div>
                   </div>
-
-                  <div className="flex items-center gap-1 ml-4 shrink-0">
-                    {/* Only allow editing ADMIN if current logged-in user is Super Admin */}
-                    {!(emp.id.toUpperCase() === 'ADMIN' && !isSuperAdminLoggedIn) && (
-                      <button
-                        onClick={() => handleEdit(emp)}
-                        className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-all cursor-pointer"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                    )}
-                    {/* No one can delete the Super Admin (ADMIN) */}
-                    {emp.id.toUpperCase() !== 'ADMIN' && (
-                      <button
-                        onClick={() => handleDelete(emp.id)}
-                        className="p-1.5 hover:bg-red-50 text-red-650 rounded-lg transition-all cursor-pointer"
-                        title="Xóa"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -769,6 +862,59 @@ export default function EmployeeManager({ currentAdmin }: EmployeeManagerProps) 
                   </>
                 ) : (
                   'Đồng ý xóa'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {deleteBulkTargets && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
+            onClick={() => !isDeleting && setDeleteBulkTargets(null)}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-6 z-10 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-50 text-red-650 rounded-xl border border-red-100 shrink-0">
+                <AlertTriangle className="h-6 w-6 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">Xác nhận Xóa Hàng loạt?</h3>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  Bạn có chắc chắn muốn xóa <strong className="text-slate-800">{deleteBulkTargets.length} nhân viên</strong> đã chọn khỏi hệ thống? Các nhật ký điểm danh liên quan vẫn sẽ tồn tại nhưng hồ sơ nhân sự của họ sẽ bị gỡ bỏ hoàn toàn.
+                </p>
+                <div className="mt-3 max-h-24 overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-2 font-mono text-[10px] text-slate-600">
+                  {deleteBulkTargets.join(', ')}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteBulkTargets(null)}
+                className="py-2 px-4 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              >
+                Hủy bỏ
+              </button>
+              
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDeleteBulk}
+                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-80"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Đang xóa...
+                  </>
+                ) : (
+                  `Đồng ý xóa (${deleteBulkTargets.length})`
                 )}
               </button>
             </div>
