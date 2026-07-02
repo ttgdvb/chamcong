@@ -40,6 +40,7 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
   const [distance, setDistance] = useState<number | null>(null);
   const [inRange, setInRange] = useState(false);
   const [isLate, setIsLate] = useState(false);
+  const [isTooEarly, setIsTooEarly] = useState(false);
   const [lateReason, setLateReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; isError: boolean } | null>(null);
@@ -147,13 +148,17 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
 
         // If current time is past the shift start, mark as late
         setIsLate(currentMinutesTotal > shiftMinutesTotal);
+        // If current time is earlier than 15 mins before shift start, mark as too early
+        setIsTooEarly(currentMinutesTotal < shiftMinutesTotal - 15);
       } else {
         setIsLate(false);
+        setIsTooEarly(false);
       }
     } else {
       setDistance(null);
       setInRange(false);
       setIsLate(false);
+      setIsTooEarly(false);
     }
   }, [coords, assignedLoc, selectedShift]);
 
@@ -196,6 +201,27 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
     if (!selectedShift) {
       setMsg({ text: 'Vui lòng chọn ca làm việc trước khi thực hiện điểm danh.', isError: true });
       return;
+    }
+
+    if (type === 'checkin') {
+      const [shiftHour, shiftMin] = selectedShift.split(':').map(Number);
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMin = now.getMinutes();
+
+      const shiftMinutesTotal = shiftHour * 60 + shiftMin;
+      const currentMinutesTotal = currentHour * 60 + currentMin;
+
+      if (currentMinutesTotal < shiftMinutesTotal - 15) {
+        const earliestHour = Math.floor((shiftMinutesTotal - 15) / 60);
+        const earliestMin = (shiftMinutesTotal - 15) % 60;
+        const earliestTimeStr = `${String(earliestHour).padStart(2, '0')}:${String(earliestMin).padStart(2, '0')}`;
+        setMsg({
+          text: `Không thể Check-in quá sớm! Bạn chỉ có thể Check-in ca ${selectedShift} từ lúc ${earliestTimeStr} (tối đa 15 phút trước giờ vào ca).`,
+          isError: true
+        });
+        return;
+      }
     }
 
     if (isLate && type === 'checkin' && !lateReason.trim()) {
@@ -492,6 +518,28 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
                 </div>
               )}
 
+              {/* Too early check warning */}
+              {inRange && isTooEarly && (
+                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl space-y-1.5 mb-4">
+                  <div className="flex items-center gap-1.5 text-rose-850 text-xs font-bold">
+                    <AlertCircle className="h-4 w-4 text-rose-650" />
+                    <span>Chưa đến giờ Check-in</span>
+                  </div>
+                  <p className="text-[11px] text-rose-700 leading-relaxed">
+                    Bạn đang thực hiện Check-in quá sớm cho ca <strong className="font-extrabold">{selectedShift}</strong>. Hệ thống chỉ cho phép Check-in tối đa <strong>15 phút trước giờ vào ca</strong>.
+                  </p>
+                  <p className="text-[10px] text-rose-600 font-semibold">
+                    Thời gian bắt đầu được phép điểm danh: {(() => {
+                      const [shiftHour, shiftMin] = selectedShift.split(':').map(Number);
+                      const shiftMinutesTotal = shiftHour * 60 + shiftMin;
+                      const earliestHour = Math.floor((shiftMinutesTotal - 15) / 60);
+                      const earliestMin = (shiftMinutesTotal - 15) % 60;
+                      return `${String(earliestHour).padStart(2, '0')}:${String(earliestMin).padStart(2, '0')}`;
+                    })()}
+                  </p>
+                </div>
+              )}
+
               {/* Status Messages */}
               {msg && (
                 <div className={`p-3 text-xs rounded-xl border mb-4 ${
@@ -508,17 +556,17 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
-                disabled={!inRange || actionLoading || (isLate && !lateReason.trim())}
+                disabled={!inRange || actionLoading || isTooEarly || (isLate && !lateReason.trim())}
                 onClick={() => handleLogAttendance('checkin')}
                 id="btn_checkin_submit"
                 className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
-                  inRange
+                  inRange && !isTooEarly
                     ? 'bg-emerald-600 border-emerald-550 text-white hover:bg-emerald-550 hover:shadow-lg hover:shadow-emerald-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
                     : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
                 }`}
               >
                 <span className="text-xl">📥</span>
-                <span>Check-in Vào Ca</span>
+                <span>{isTooEarly ? 'Chưa đến giờ' : 'Check-in Vào Ca'}</span>
               </button>
 
               <button
