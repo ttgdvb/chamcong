@@ -228,9 +228,60 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
       log => log.type === 'checkout' && log.shift === selectedShift && isToday(log.timestamp) && log.status === 'success'
     );
 
+    // Rule 1: Trong cùng 1 ngày, nếu ca trước có check in thì phải có check out thì ca sau mới checkin được
+    const sortedShifts = [...(assignedLoc?.shiftStartTimes || [])].sort((a, b) => {
+      const [hA, mA] = a.split(':').map(Number);
+      const [hB, mB] = b.split(':').map(Number);
+      return (hA * 60 + mA) - (hB * 60 + mB);
+    });
+
+    const currentShiftIdx = sortedShifts.indexOf(selectedShift);
+    let uncheckedPrevShift: string | null = null;
+    if (type === 'checkin' && currentShiftIdx > 0) {
+      for (let i = 0; i < currentShiftIdx; i++) {
+        const prevShift = sortedShifts[i];
+        const prevShiftCheckin = logs.some(
+          log => log.type === 'checkin' && log.shift === prevShift && isToday(log.timestamp) && log.status === 'success'
+        );
+        const prevShiftCheckout = logs.some(
+          log => log.type === 'checkout' && log.shift === prevShift && isToday(log.timestamp) && log.status === 'success'
+        );
+        if (prevShiftCheckin && !prevShiftCheckout) {
+          uncheckedPrevShift = prevShift;
+          break;
+        }
+      }
+    }
+
+    if (type === 'checkin' && uncheckedPrevShift) {
+      setMsg({
+        text: `Bạn chưa Check-out ca trước đó (Ca ${uncheckedPrevShift}). Vui lòng chuyển sang chọn Ca ${uncheckedPrevShift} để thực hiện Check-out trước khi Check-in ca ${selectedShift}!`,
+        isError: true
+      });
+      return;
+    }
+
     if (type === 'checkin' && hasCheckedInToday) {
       setMsg({
         text: `Bạn đã Check-in ca ${selectedShift} ngày hôm nay rồi! Mỗi ca chỉ được phép Check-in 1 lần.`,
+        isError: true
+      });
+      return;
+    }
+
+    // Rule 3: Trong cùng 1 ca không check out trước rồi check in sau
+    if (type === 'checkin' && hasCheckedOutToday) {
+      setMsg({
+        text: `Bạn không thể Check-in vì hệ thống ghi nhận bạn đã Check-out ca ${selectedShift} hôm nay rồi!`,
+        isError: true
+      });
+      return;
+    }
+
+    // Rule 2: Check in thì mới có check out
+    if (type === 'checkout' && !hasCheckedInToday) {
+      setMsg({
+        text: `Bạn chưa thực hiện Check-in cho ca ${selectedShift} hôm nay! Phải Check-in trước mới có thể Check-out.`,
         isError: true
       });
       return;
@@ -329,6 +380,30 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
   const hasCheckedOutToday = logs.some(
     log => log.type === 'checkout' && log.shift === selectedShift && isToday(log.timestamp) && log.status === 'success'
   );
+
+  const sortedShifts = [...(assignedLoc?.shiftStartTimes || [])].sort((a, b) => {
+    const [hA, mA] = a.split(':').map(Number);
+    const [hB, mB] = b.split(':').map(Number);
+    return (hA * 60 + mA) - (hB * 60 + mB);
+  });
+
+  const currentShiftIdx = selectedShift ? sortedShifts.indexOf(selectedShift) : -1;
+  let uncheckedPrevShift: string | null = null;
+  if (selectedShift && currentShiftIdx > 0) {
+    for (let i = 0; i < currentShiftIdx; i++) {
+      const prevShift = sortedShifts[i];
+      const prevShiftCheckin = logs.some(
+        log => log.type === 'checkin' && log.shift === prevShift && isToday(log.timestamp) && log.status === 'success'
+      );
+      const prevShiftCheckout = logs.some(
+        log => log.type === 'checkout' && log.shift === prevShift && isToday(log.timestamp) && log.status === 'success'
+      );
+      if (prevShiftCheckin && !prevShiftCheckout) {
+        uncheckedPrevShift = prevShift;
+        break;
+      }
+    }
+  }
 
   return (
     <div id="employee_dashboard" className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-850">
@@ -667,19 +742,30 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
                 </div>
               )}
 
-              {/* Already Completed Shifts Indicator */}
-              {(hasCheckedInToday || hasCheckedOutToday) && (
+              {/* Already Completed Shifts Indicator & Shift Warnings */}
+              {(hasCheckedInToday || hasCheckedOutToday || !!uncheckedPrevShift || (selectedShift && !hasCheckedInToday)) && (
                 <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-[11px] text-indigo-800 space-y-1 mb-4">
                   <div className="flex items-center gap-1 font-bold">
                     <CheckCircle className="h-3.5 w-3.5 text-indigo-600" />
-                    <span>Trạng thái ca làm việc hôm nay:</span>
+                    <span>Trạng thái ca {selectedShift} hôm nay:</span>
                   </div>
-                  <ul className="list-disc pl-4 space-y-0.5">
+                  <ul className="list-disc pl-4 space-y-1 font-medium text-slate-700">
                     {hasCheckedInToday && (
-                      <li>Bạn đã ghi nhận <strong className="font-extrabold text-emerald-700">Check-in thành công</strong> ca {selectedShift} hôm nay.</li>
+                      <li>Ca {selectedShift}: <strong className="font-extrabold text-emerald-700">Đã Check-in thành công</strong>.</li>
                     )}
                     {hasCheckedOutToday && (
-                      <li>Bạn đã ghi nhận <strong className="font-extrabold text-indigo-700">Check-out thành công</strong> ca {selectedShift} hôm nay.</li>
+                      <li>Ca {selectedShift}: <strong className="font-extrabold text-indigo-700">Đã Check-out thành công</strong>.</li>
+                    )}
+                    {!hasCheckedInToday && !hasCheckedOutToday && selectedShift && (
+                      <li className="text-amber-800">Ca {selectedShift}: Chưa ghi nhận Check-in hôm nay.</li>
+                    )}
+                    {uncheckedPrevShift && (
+                      <li className="text-red-650 bg-red-50/50 p-2 border border-red-100 rounded-lg list-none -ml-4 mt-1 flex items-start gap-1.5 font-semibold">
+                        <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <span>
+                          Bạn chưa Check-out <strong>Ca {uncheckedPrevShift}</strong>. Vui lòng chuyển sang chọn Ca {uncheckedPrevShift} để Check-out trước khi Check-in ca {selectedShift}!
+                        </span>
+                      </li>
                     )}
                   </ul>
                 </div>
@@ -701,45 +787,57 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
-                disabled={!inRange || actionLoading || isTooEarly || hasCheckedInToday || (isLate && !lateReason.trim())}
+                disabled={!inRange || actionLoading || isTooEarly || hasCheckedInToday || hasCheckedOutToday || !!uncheckedPrevShift || (isLate && !lateReason.trim())}
                 onClick={() => handleLogAttendance('checkin')}
                 id="btn_checkin_submit"
                 className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
                   hasCheckedInToday
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-600 cursor-not-allowed'
-                    : inRange && !isTooEarly
-                      ? 'bg-emerald-600 border-emerald-550 text-white hover:bg-emerald-550 hover:shadow-lg hover:shadow-emerald-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
-                      : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
+                    : hasCheckedOutToday
+                      ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                      : !!uncheckedPrevShift
+                        ? 'bg-red-50 border-red-200 text-red-600 cursor-not-allowed'
+                        : inRange && !isTooEarly
+                          ? 'bg-emerald-600 border-emerald-550 text-white hover:bg-emerald-550 hover:shadow-lg hover:shadow-emerald-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
+                          : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
                 }`}
               >
                 <span className="text-xl">📥</span>
                 <span>
                   {hasCheckedInToday
                     ? 'Đã Check-in'
-                    : isTooEarly
-                      ? 'Chưa đến giờ'
-                      : 'Check-in Vào Ca'}
+                    : hasCheckedOutToday
+                      ? 'Đã Check-out'
+                      : !!uncheckedPrevShift
+                        ? 'Cần Check-out ca trước'
+                        : isTooEarly
+                          ? 'Chưa đến giờ'
+                          : 'Check-in Vào Ca'}
                 </span>
               </button>
 
               <button
                 type="button"
-                disabled={!inRange || actionLoading || hasCheckedOutToday}
+                disabled={!inRange || actionLoading || !hasCheckedInToday || hasCheckedOutToday}
                 onClick={() => handleLogAttendance('checkout')}
                 id="btn_checkout_submit"
                 className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
                   hasCheckedOutToday
                     ? 'bg-indigo-50 border-indigo-200 text-indigo-600 cursor-not-allowed'
-                    : inRange
-                      ? 'bg-indigo-600 border-indigo-550 text-white hover:bg-indigo-550 hover:shadow-lg hover:shadow-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
-                      : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
+                    : !hasCheckedInToday
+                      ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                      : inRange
+                        ? 'bg-indigo-600 border-indigo-550 text-white hover:bg-indigo-550 hover:shadow-lg hover:shadow-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
+                        : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
                 }`}
               >
                 <span className="text-xl">📤</span>
                 <span>
                   {hasCheckedOutToday
                     ? 'Đã Check-out'
-                    : 'Check-out Về'}
+                    : !hasCheckedInToday
+                      ? 'Chưa Check-in'
+                      : 'Check-out Về'}
                 </span>
               </button>
             </div>
