@@ -16,6 +16,7 @@ export default function LocationManager() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [radius, setRadius] = useState('100');
+  const [checkinBufferMinutes, setCheckinBufferMinutes] = useState('15');
   const [shiftsList, setShiftsList] = useState<string[]>(['08:00', '13:30']);
   const [newShiftTime, setNewShiftTime] = useState('08:00');
   const [error, setError] = useState<string | null>(null);
@@ -347,6 +348,7 @@ export default function LocationManager() {
     setLatitude(loc.latitude.toString());
     setLongitude(loc.longitude.toString());
     setRadius(loc.radius.toString());
+    setCheckinBufferMinutes((loc.checkinBufferMinutes !== undefined ? loc.checkinBufferMinutes : 15).toString());
     setShiftsList(loc.shiftStartTimes || []);
     setError(null);
   };
@@ -359,6 +361,7 @@ export default function LocationManager() {
     setLatitude('');
     setLongitude('');
     setRadius('100');
+    setCheckinBufferMinutes('15');
     setShiftsList(['08:00', '13:30']);
     setError(null);
   };
@@ -407,6 +410,9 @@ export default function LocationManager() {
       }
     }
 
+    const bufferMinutes = parseInt(checkinBufferMinutes, 10);
+    const finalBuffer = isNaN(bufferMinutes) || bufferMinutes < 0 ? 15 : bufferMinutes;
+
     try {
       const updatedLoc: Location = {
         id: newId,
@@ -415,7 +421,8 @@ export default function LocationManager() {
         latitude: latNum,
         longitude: lonNum,
         radius: radNum,
-        shiftStartTimes: shiftsList
+        shiftStartTimes: shiftsList,
+        checkinBufferMinutes: finalBuffer
       };
 
       await saveLocation(updatedLoc);
@@ -534,6 +541,23 @@ export default function LocationManager() {
                 onChange={(e) => setRadius(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Thời gian được check-in trước ca (phút) *
+              </label>
+              <input
+                type="number"
+                placeholder="Mặc định: 15"
+                value={checkinBufferMinutes}
+                onChange={(e) => setCheckinBufferMinutes(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                min="0"
+              />
+              <p className="mt-1 text-[9px] text-slate-450 italic">
+                Thời gian (phút) cho phép nhân viên có thể Check-in trước khi ca bắt đầu.
+              </p>
             </div>
 
             <div>
@@ -671,6 +695,9 @@ export default function LocationManager() {
                     <div className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5">
                       <span className="text-xs font-bold text-indigo-650">
                         Bán kính: {loc.radius}m
+                      </span>
+                      <span className="text-xs font-bold text-amber-650">
+                        Check-in trước ca: {loc.checkinBufferMinutes !== undefined ? loc.checkinBufferMinutes : 15}p
                       </span>
                       <span className="text-xs font-bold text-teal-650">
                         Ca làm: {loc.shiftStartTimes.map((shift, idx) => `Ca ${idx + 1} (${shift})`).join(' | ')}
