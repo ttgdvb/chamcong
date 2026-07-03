@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckinLog, Location } from '../types';
-import { getAllLogs, getAllLocations } from '../lib/firebase';
+import { getAllLogs, getAllLocations, getAllEmployees } from '../lib/firebase';
 import { Calendar, Filter, Search, Clock, MapPin, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import { formatDistance } from '../lib/geo';
 import * as XLSX from 'xlsx';
@@ -223,6 +223,151 @@ export default function AttendanceLogs() {
     }
   };
 
+  // Export shift-based summary to Excel matching mockup
+  const handleExportExcelShifts = async () => {
+    if (filterLocation === 'all') {
+      alert('Vui lòng chọn một Cơ sở / Địa điểm cụ thể ở bộ lọc trước khi xuất file tổng hợp theo ca!');
+      return;
+    }
+
+    const targetLoc = locations.find(l => l.id === filterLocation);
+    if (!targetLoc) {
+      alert('Không tìm thấy cơ sở được chọn!');
+      return;
+    }
+
+    if (!targetLoc.shiftStartTimes || targetLoc.shiftStartTimes.length === 0) {
+      alert(`Cơ sở "${targetLoc.name}" chưa được cấu hình ca làm việc nào!`);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const allEmployees = await getAllEmployees();
+      
+      // Filter active employees belonging to the selected location
+      const filteredEmployees = allEmployees
+        .filter(emp => emp.locationId === targetLoc.id)
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, 'vi'));
+
+      if (filteredEmployees.length === 0) {
+        alert(`Không có nhân viên nào trực thuộc cơ sở "${targetLoc.name}"!`);
+        setLoading(false);
+        return;
+      }
+
+      let reportMonth = new Date().getMonth() + 1;
+      let reportYear = new Date().getFullYear();
+      if (filterStartDate) {
+        const [y, m, d] = filterStartDate.split('-').map(Number);
+        reportMonth = m;
+        reportYear = y;
+      }
+
+      const numDays = new Date(reportYear, reportMonth, 0).getDate();
+
+      // Build AOA (Array of Arrays) representing the grid
+      const aoa: any[][] = [];
+
+      // Row 1: Header row 1
+      const row1 = ["STT", "Họ và Tên", "Ca", "Thời gian"];
+      row1.push(`THÁNG ${String(reportMonth).padStart(2, '0')}/${reportYear}`);
+      for (let i = 2; i <= numDays; i++) {
+        row1.push("");
+      }
+      aoa.push(row1);
+
+      // Row 2: Header row 2 with day numbers
+      const row2: any[] = ["", "", "Tên ca", "Giờ vào"];
+      for (let i = 1; i <= numDays; i++) {
+        row2.push(i);
+      }
+      aoa.push(row2);
+
+      // Merges array
+      const merges: any[] = [
+        // STT (A1:A2)
+        { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+        // Họ và Tên (B1:B2)
+        { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+        // Ca (C1:D1)
+        { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
+        // THÁNG header (E1:last day)
+        { s: { r: 0, c: 4 }, e: { r: 0, c: 4 + numDays - 1 } }
+      ];
+
+      // Generate employee rows
+      const S = targetLoc.shiftStartTimes.length;
+      filteredEmployees.forEach((emp, empIdx) => {
+        const startRow = aoa.length;
+
+        for (let j = 0; j < S; j++) {
+          const shiftTime = targetLoc.shiftStartTimes[j];
+          const shiftName = `Ca ${j + 1}`;
+
+          // We only show STT and Full Name in the first row of each employee (merged later)
+          const sttValue = j === 0 ? empIdx + 1 : "";
+          const fullNameValue = j === 0 ? emp.fullName : "";
+
+          const rowData = [sttValue, fullNameValue, shiftName, shiftTime];
+
+          // Fill in check-in marker ('x') for each day
+          for (let day = 1; day <= numDays; day++) {
+            const hasLog = logs.some(log => {
+              if (log.employeeId !== emp.id) return false;
+              if (log.type !== 'checkin') return false;
+              if (log.status !== 'success') return false;
+              
+              // Check shift match (ignore spacing, trim)
+              const logShift = (log.shift || '').trim();
+              if (logShift !== shiftTime.trim()) return false;
+
+              const logDate = new Date(log.timestamp);
+              return logDate.getFullYear() === reportYear &&
+                     (logDate.getMonth() + 1) === reportMonth &&
+                     logDate.getDate() === day;
+            });
+
+            rowData.push(hasLog ? 'x' : '');
+          }
+
+          aoa.push(rowData);
+        }
+
+        // Merge STT and Name cells for this employee if S > 1
+        if (S > 1) {
+          merges.push({ s: { r: startRow, c: 0 }, e: { r: startRow + S - 1, c: 0 } });
+          merges.push({ s: { r: startRow, c: 1 }, e: { r: startRow + S - 1, c: 1 } });
+        }
+      });
+
+      const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+      worksheet['!merges'] = merges;
+
+      // Define column widths
+      const colWidths: any[] = [
+        { wch: 6 },   // STT
+        { wch: 22 },  // Họ và tên
+        { wch: 10 },  // Tên ca (Ca 1, etc.)
+        { wch: 10 }   // Giờ vào (08:00, etc.)
+      ];
+      for (let i = 1; i <= numDays; i++) {
+        colWidths.push({ wch: 4 }); // Narrow column width for day cells
+      }
+      worksheet['!cols'] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bảng chấm công theo ca');
+
+      XLSX.writeFile(workbook, `Bao_Cao_Tong_Hop_Theo_Ca_${targetLoc.code}_Thang_${String(reportMonth).padStart(2, '0')}_${reportYear}.xlsx`);
+    } catch (error) {
+      console.error('Error exporting shift-based summary:', error);
+      alert('Có lỗi xảy ra khi xuất báo cáo theo ca. Vui lòng thử lại!');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -241,6 +386,16 @@ export default function AttendanceLogs() {
             >
               <FileSpreadsheet className="h-4 w-4" />
               Xuất Excel tổng hợp ({filteredLogs.length})
+            </button>
+
+            <button
+              onClick={handleExportExcelShifts}
+              disabled={loading}
+              className="flex items-center gap-1.5 py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50"
+              title="Xuất Excel bảng chấm công tổng hợp theo ca của cơ sở được chọn"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Xuất file tổng hợp theo ca
             </button>
 
             <button
