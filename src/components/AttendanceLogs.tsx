@@ -582,16 +582,16 @@ export default function AttendanceLogs() {
             Không tìm thấy lịch sử điểm danh nào phù hợp.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[550px] border border-slate-200 rounded-xl scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
             <table className="w-full border-collapse text-left text-sm text-slate-600">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-550 font-bold">
-                  <th className="py-3.5 px-4 text-xs tracking-wider uppercase">Nhân viên</th>
-                  <th className="py-3.5 px-4 text-xs tracking-wider uppercase">Thời gian</th>
-                  <th className="py-3.5 px-4 text-xs tracking-wider uppercase">Văn phòng / Địa điểm</th>
-                  <th className="py-3.5 px-4 text-xs tracking-wider uppercase text-center">Hoạt động</th>
-                  <th className="py-3.5 px-4 text-xs tracking-wider uppercase">Khoảng cách</th>
-                  <th className="py-3.5 px-4 text-xs tracking-wider uppercase">Trạng thái đi muộn</th>
+              <thead className="sticky top-0 bg-white z-10 border-b border-slate-200 shadow-sm">
+                <tr className="text-slate-550 font-bold bg-white">
+                  <th className="py-3 px-4 text-xs tracking-wider uppercase">Nhân viên</th>
+                  <th className="py-3 px-4 text-xs tracking-wider uppercase">Thời gian</th>
+                  <th className="py-3 px-4 text-xs tracking-wider uppercase">Văn phòng / Địa điểm</th>
+                  <th className="py-3 px-4 text-xs tracking-wider uppercase text-center">Hoạt động</th>
+                  <th className="py-3 px-4 text-xs tracking-wider uppercase">Khoảng cách</th>
+                  <th className="py-3 px-4 text-xs tracking-wider uppercase">Trạng thái đi muộn</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
