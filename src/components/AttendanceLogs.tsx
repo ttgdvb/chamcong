@@ -5,6 +5,14 @@ import { Calendar, Filter, Search, Clock, MapPin, CheckCircle2, AlertCircle, Ref
 import { formatDistance } from '../lib/geo';
 import * as XLSX from 'xlsx';
 
+const getTodayISO = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function AttendanceLogs() {
   const [logs, setLogs] = useState<CheckinLog[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -16,8 +24,8 @@ export default function AttendanceLogs() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'error'>('all');
   const [filterLate, setFilterLate] = useState<'all' | 'late'>('all');
   const [filterLocation, setFilterLocation] = useState<string>('all');
-  const [filterStartDate, setFilterStartDate] = useState<string>('');
-  const [filterEndDate, setFilterEndDate] = useState<string>('');
+  const [filterStartDate, setFilterStartDate] = useState<string>(getTodayISO());
+  const [filterEndDate, setFilterEndDate] = useState<string>(getTodayISO());
 
   useEffect(() => {
     fetchLogs();
