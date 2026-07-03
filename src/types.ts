@@ -6,6 +6,7 @@ export interface Location {
   longitude: number;
   radius: number; // in meters
   shiftStartTimes: string[]; // List of shifts, e.g. ["08:00", "13:30"]
+  checkinBufferMinutes?: number; // Allowed minutes to checkin before shift starts (e.g. 15, 30, 60)
 }
 
 export interface Employee {
