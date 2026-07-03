@@ -166,8 +166,9 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
 
         // If current time is past the shift start, mark as late
         setIsLate(currentMinutesTotal > shiftMinutesTotal);
-        // If current time is earlier than 15 mins before shift start, mark as too early
-        setIsTooEarly(currentMinutesTotal < shiftMinutesTotal - 15);
+        // If current time is earlier than configured buffer before shift start, mark as too early
+        const buffer = assignedLoc.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15;
+        setIsTooEarly(currentMinutesTotal < shiftMinutesTotal - buffer);
       } else {
         setIsLate(false);
         setIsTooEarly(false);
@@ -728,14 +729,17 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
                     <span>Chưa đến giờ Check-in</span>
                   </div>
                   <p className="text-[11px] text-rose-700 leading-relaxed">
-                    Bạn đang thực hiện Check-in quá sớm cho ca <strong className="font-extrabold">{selectedShift}</strong>. Hệ thống chỉ cho phép Check-in tối đa <strong>15 phút trước giờ vào ca</strong>.
+                    Bạn đang thực hiện Check-in quá sớm cho ca <strong className="font-extrabold">{selectedShift}</strong>. Hệ thống chỉ cho phép Check-in tối đa <strong>{assignedLoc?.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15} phút trước giờ vào ca</strong>.
                   </p>
                   <p className="text-[10px] text-rose-600 font-semibold">
                     Thời gian bắt đầu được phép điểm danh: {(() => {
                       const [shiftHour, shiftMin] = selectedShift.split(':').map(Number);
                       const shiftMinutesTotal = shiftHour * 60 + shiftMin;
-                      const earliestHour = Math.floor((shiftMinutesTotal - 15) / 60);
-                      const earliestMin = (shiftMinutesTotal - 15) % 60;
+                      const buffer = assignedLoc?.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15;
+                      const earliestMinutesTotal = shiftMinutesTotal - buffer;
+                      const adjustedMinutes = earliestMinutesTotal < 0 ? (earliestMinutesTotal + 1440) : earliestMinutesTotal;
+                      const earliestHour = Math.floor(adjustedMinutes / 60) % 24;
+                      const earliestMin = adjustedMinutes % 60;
                       return `${String(earliestHour).padStart(2, '0')}:${String(earliestMin).padStart(2, '0')}`;
                     })()}
                   </p>
