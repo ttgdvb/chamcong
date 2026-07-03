@@ -64,7 +64,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             <Sparkles className="h-7 w-7 animate-pulse" id="login_logo" />
           </div>
           <h2 className="mt-5 text-3xl font-black tracking-tight text-slate-900">
-            CHẤM CÔNG VIỆT BẮC
+            TRUNG TÂM GIÁO DỤC VIỆT BẮC
           </h2>
           <p className="mt-2 text-xs font-medium text-slate-500 tracking-wide uppercase">
              Hệ thống điểm danh GPS thông minh
