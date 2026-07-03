@@ -300,6 +300,21 @@ export default function LocationManager() {
     setShiftsList(updated);
   };
 
+  const handleEditShift = (index: number, newTime: string) => {
+    if (!newTime) return;
+    const formatted = newTime.slice(0, 5);
+    const updated = [...shiftsList];
+    updated[index] = formatted;
+    setShiftsList(updated);
+  };
+
+  const handleShiftBlur = () => {
+    // Deduplicate and sort when user finishes editing a shift time
+    const cleanSorted = Array.from(new Set(shiftsList.filter(Boolean))) as string[];
+    cleanSorted.sort();
+    setShiftsList(cleanSorted);
+  };
+
   useEffect(() => {
     fetchLocations();
   }, []);
@@ -413,6 +428,9 @@ export default function LocationManager() {
     const bufferMinutes = parseInt(checkinBufferMinutes, 10);
     const finalBuffer = isNaN(bufferMinutes) || bufferMinutes < 0 ? 15 : bufferMinutes;
 
+    const cleanShifts = Array.from(new Set(shiftsList.filter(Boolean))) as string[];
+    cleanShifts.sort();
+
     try {
       const updatedLoc: Location = {
         id: newId,
@@ -421,7 +439,7 @@ export default function LocationManager() {
         latitude: latNum,
         longitude: lonNum,
         radius: radNum,
-        shiftStartTimes: shiftsList,
+        shiftStartTimes: cleanShifts,
         checkinBufferMinutes: finalBuffer
       };
 
@@ -574,19 +592,26 @@ export default function LocationManager() {
                 <div className="space-y-1.5 mb-3 max-h-36 overflow-y-auto pr-1">
                   {shiftsList.map((shift, idx) => (
                     <div 
-                      key={shift} 
-                      className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border border-slate-150 rounded-xl"
+                      key={idx} 
+                      className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border border-slate-150 rounded-xl hover:border-slate-300 transition-all"
                     >
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-extrabold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 text-[9px]">
+                      <div className="flex items-center gap-2 text-xs flex-1">
+                        <span className="font-extrabold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 text-[9px] shrink-0">
                           Ca {idx + 1}
                         </span>
-                        <span className="font-mono text-slate-700 font-bold">{shift}</span>
+                        <input
+                          type="time"
+                          value={shift}
+                          onChange={(e) => handleEditShift(idx, e.target.value)}
+                          onBlur={handleShiftBlur}
+                          className="font-mono text-slate-700 font-bold bg-transparent border-b border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-550 focus:outline-none py-0.5 px-1 rounded text-xs transition-all w-24 cursor-pointer"
+                          title="Click để thay đổi giờ của ca này"
+                        />
                       </div>
                       <button
                         type="button"
                         onClick={() => handleRemoveShift(idx)}
-                        className="text-rose-500 hover:text-rose-750 hover:bg-rose-50 p-1 rounded-lg transition-all cursor-pointer"
+                        className="text-rose-500 hover:text-rose-750 hover:bg-rose-50 p-1 rounded-lg transition-all cursor-pointer shrink-0"
                         title="Xóa ca này"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
