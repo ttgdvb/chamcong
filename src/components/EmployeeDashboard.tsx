@@ -15,13 +15,22 @@ import {
   Sparkles,
   HelpCircle,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 interface EmployeeDashboardProps {
   employee: Employee;
   onLogout: () => void;
 }
+
+const isToday = (timestamp: number) => {
+  const d = new Date(timestamp);
+  const today = new Date();
+  return d.getDate() === today.getDate() &&
+         d.getMonth() === today.getMonth() &&
+         d.getFullYear() === today.getFullYear();
+};
 
 export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashboardProps) {
   const [locations, setLocations] = useState<Location[]>([]);
@@ -44,6 +53,15 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
   const [lateReason, setLateReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; isError: boolean } | null>(null);
+
+  // Success Modal Dialog States
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successDetails, setSuccessDetails] = useState<{
+    type: 'checkin' | 'checkout';
+    shift: string;
+    time: string;
+    locationName: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -203,6 +221,29 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
       return;
     }
 
+    const hasCheckedInToday = logs.some(
+      log => log.type === 'checkin' && log.shift === selectedShift && isToday(log.timestamp) && log.status === 'success'
+    );
+    const hasCheckedOutToday = logs.some(
+      log => log.type === 'checkout' && log.shift === selectedShift && isToday(log.timestamp) && log.status === 'success'
+    );
+
+    if (type === 'checkin' && hasCheckedInToday) {
+      setMsg({
+        text: `Bạn đã Check-in ca ${selectedShift} ngày hôm nay rồi! Mỗi ca chỉ được phép Check-in 1 lần.`,
+        isError: true
+      });
+      return;
+    }
+
+    if (type === 'checkout' && hasCheckedOutToday) {
+      setMsg({
+        text: `Bạn đã Check-out ca ${selectedShift} ngày hôm nay rồi! Mỗi ca chỉ được phép Check-out 1 lần.`,
+        isError: true
+      });
+      return;
+    }
+
     if (type === 'checkin') {
       const [shiftHour, shiftMin] = selectedShift.split(':').map(Number);
       const now = new Date();
@@ -259,10 +300,14 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
       await addCheckinLog(logData);
       await refreshLogs();
       
-      setMsg({
-        text: `${type === 'checkin' ? 'Check-in' : 'Check-out'} ca ${selectedShift} thành công lúc ${new Date().toLocaleTimeString('vi-VN')}!`,
-        isError: false
+      setSuccessDetails({
+        type,
+        shift: selectedShift,
+        time: new Date().toLocaleTimeString('vi-VN'),
+        locationName: assignedLoc.name
       });
+      setShowSuccessModal(true);
+      setMsg(null);
       setLateReason(''); // reset
     } catch (err: any) {
       console.error(err);
@@ -277,6 +322,13 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
     const d = new Date(ts);
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' - ' + d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
   };
+
+  const hasCheckedInToday = logs.some(
+    log => log.type === 'checkin' && log.shift === selectedShift && isToday(log.timestamp) && log.status === 'success'
+  );
+  const hasCheckedOutToday = logs.some(
+    log => log.type === 'checkout' && log.shift === selectedShift && isToday(log.timestamp) && log.status === 'success'
+  );
 
   return (
     <div id="employee_dashboard" className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-850">
@@ -309,6 +361,33 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
         
+        {/* Top Success Banner */}
+        {showSuccessModal && successDetails && (
+          <div className="bg-emerald-50 border-2 border-emerald-200 text-emerald-900 rounded-2xl p-4.5 shadow-md flex items-start gap-3.5 animate-in fade-in duration-200">
+            <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-xl border border-emerald-200 shrink-0">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="font-extrabold text-xs text-emerald-950 uppercase tracking-widest">
+                ĐÃ ĐIỂM DANH THÀNH CÔNG!
+              </div>
+              <p className="text-xs text-emerald-800 leading-relaxed font-semibold">
+                Bạn đã {successDetails.type === 'checkin' ? 'Check-in vào' : 'Check-out ra'} ca làm việc <strong className="font-extrabold text-emerald-950 font-mono">Ca {successDetails.shift}</strong> tại <strong className="font-extrabold text-emerald-950">{successDetails.locationName}</strong> thành công lúc <strong className="font-extrabold text-emerald-950 font-mono">{successDetails.time}</strong> hôm nay.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                setSuccessDetails(null);
+              }}
+              className="p-1 hover:bg-emerald-100/50 rounded-lg text-emerald-600 transition-colors cursor-pointer shrink-0"
+              title="Đóng thông báo"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Profile Card & Office Assignment */}
         <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 rounded-2xl p-6 border border-indigo-600/50 shadow-xl relative overflow-hidden">
           <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
@@ -588,6 +667,24 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
                 </div>
               )}
 
+              {/* Already Completed Shifts Indicator */}
+              {(hasCheckedInToday || hasCheckedOutToday) && (
+                <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-[11px] text-indigo-800 space-y-1 mb-4">
+                  <div className="flex items-center gap-1 font-bold">
+                    <CheckCircle className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>Trạng thái ca làm việc hôm nay:</span>
+                  </div>
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    {hasCheckedInToday && (
+                      <li>Bạn đã ghi nhận <strong className="font-extrabold text-emerald-700">Check-in thành công</strong> ca {selectedShift} hôm nay.</li>
+                    )}
+                    {hasCheckedOutToday && (
+                      <li>Bạn đã ghi nhận <strong className="font-extrabold text-indigo-700">Check-out thành công</strong> ca {selectedShift} hôm nay.</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
               {/* Status Messages */}
               {msg && (
                 <div className={`p-3 text-xs rounded-xl border mb-4 ${
@@ -604,32 +701,46 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
-                disabled={!inRange || actionLoading || isTooEarly || (isLate && !lateReason.trim())}
+                disabled={!inRange || actionLoading || isTooEarly || hasCheckedInToday || (isLate && !lateReason.trim())}
                 onClick={() => handleLogAttendance('checkin')}
                 id="btn_checkin_submit"
                 className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
-                  inRange && !isTooEarly
-                    ? 'bg-emerald-600 border-emerald-550 text-white hover:bg-emerald-550 hover:shadow-lg hover:shadow-emerald-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
-                    : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
+                  hasCheckedInToday
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600 cursor-not-allowed'
+                    : inRange && !isTooEarly
+                      ? 'bg-emerald-600 border-emerald-550 text-white hover:bg-emerald-550 hover:shadow-lg hover:shadow-emerald-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
+                      : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
                 }`}
               >
                 <span className="text-xl">📥</span>
-                <span>{isTooEarly ? 'Chưa đến giờ' : 'Check-in Vào Ca'}</span>
+                <span>
+                  {hasCheckedInToday
+                    ? 'Đã Check-in'
+                    : isTooEarly
+                      ? 'Chưa đến giờ'
+                      : 'Check-in Vào Ca'}
+                </span>
               </button>
 
               <button
                 type="button"
-                disabled={!inRange || actionLoading}
+                disabled={!inRange || actionLoading || hasCheckedOutToday}
                 onClick={() => handleLogAttendance('checkout')}
                 id="btn_checkout_submit"
                 className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
-                  inRange
-                    ? 'bg-indigo-600 border-indigo-550 text-white hover:bg-indigo-550 hover:shadow-lg hover:shadow-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
-                    : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
+                  hasCheckedOutToday
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600 cursor-not-allowed'
+                    : inRange
+                      ? 'bg-indigo-600 border-indigo-550 text-white hover:bg-indigo-550 hover:shadow-lg hover:shadow-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
+                      : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
                 }`}
               >
                 <span className="text-xl">📤</span>
-                <span>Check-out Về</span>
+                <span>
+                  {hasCheckedOutToday
+                    ? 'Đã Check-out'
+                    : 'Check-out Về'}
+                </span>
               </button>
             </div>
 
@@ -729,6 +840,61 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
           Hệ thống Quản lý Điểm danh GPS • Powered by Firebase Firestore
         </div>
       </footer>
+
+      {/* Success Modal Dialogue */}
+      {showSuccessModal && successDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <div 
+            className="absolute inset-0" 
+            onClick={() => {
+              setShowSuccessModal(false);
+              setSuccessDetails(null);
+            }}
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 z-10 text-center space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 flex items-center justify-center mx-auto shadow-sm shadow-emerald-500/10">
+              <CheckCircle2 className="h-10 w-10 animate-bounce" />
+            </div>
+            
+            <div className="space-y-1.5">
+              <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Điểm danh Thành công!</h3>
+              <p className="text-xs text-slate-500 font-medium">Hệ thống đã nhận diện chính xác thông tin điểm danh</p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 text-xs text-slate-700 text-left space-y-2 font-medium">
+              <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
+                <span className="text-slate-400">Hình thức:</span>
+                <span className={`font-bold ${successDetails.type === 'checkin' ? 'text-emerald-700' : 'text-indigo-700'}`}>
+                  {successDetails.type === 'checkin' ? '📥 CHECK-IN VÀO CA' : '📤 CHECK-OUT RA VỀ'}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
+                <span className="text-slate-400">Ca làm việc:</span>
+                <span className="font-extrabold text-slate-900">Ca {successDetails.shift}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200/60 pb-1.5">
+                <span className="text-slate-400">Thời gian:</span>
+                <span className="font-mono font-bold text-slate-900">{successDetails.time}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Địa điểm:</span>
+                <span className="font-bold text-slate-900">{successDetails.locationName}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuccessModal(false);
+                setSuccessDetails(null);
+              }}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-550 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-500/10 transition-all cursor-pointer active:scale-98"
+            >
+              Xác nhận và Đóng
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
