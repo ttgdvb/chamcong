@@ -56,6 +56,11 @@ export default function App() {
     }
   };
 
+  const handleUserUpdate = (updatedUser: Employee) => {
+    setCurrentUser(updatedUser);
+    localStorage.setItem('gps_attendance_user', JSON.stringify(updatedUser));
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('gps_attendance_user');
     setCurrentUser(null);
@@ -208,7 +213,7 @@ service cloud.firestore {
       {viewMode === 'admin' && currentUser.isAdmin ? (
         <AdminPanel adminUser={currentUser} onLogout={handleLogout} />
       ) : (
-        <EmployeeDashboard employee={currentUser} onLogout={handleLogout} />
+        <EmployeeDashboard employee={currentUser} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
       )}
     </div>
   );
