@@ -83,92 +83,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 /**
  * Seed the database with default data if it's currently empty.
- * This ensures the user has a fully working system immediately.
+ * Disabled for production to avoid auto-generating sample data.
  */
 export async function seedDatabaseIfEmpty() {
-  try {
-    const locationsSnap = await getDocs(collection(db, LOCATIONS_COLLECTION));
-    if (locationsSnap.empty) {
-      console.log('Database is empty. Seeding default data...');
-      
-      const batch = writeBatch(db);
-
-      // 1. Seed Default Locations
-      const defaultLocations: Location[] = [
-        {
-          id: 'HN-HQ',
-          code: 'HN-HQ',
-          name: 'Trụ sở chính Hà Nội',
-          latitude: 21.0285, // Hồ Hoàn Kiếm, Hà Nội
-          longitude: 105.8542,
-          radius: 100, // 100 meters
-          shiftStartTimes: ['08:00', '13:30']
-        },
-        {
-          id: 'HCM-OFFICE',
-          code: 'HCM-OFFICE',
-          name: 'Văn phòng TP. Hồ Chí Minh',
-          latitude: 10.7769, // Chợ Bến Thành, Quận 1
-          longitude: 106.7009,
-          radius: 150, // 150 meters
-          shiftStartTimes: ['08:00', '13:30']
-        },
-        {
-          id: 'DYNAMIC-TEST',
-          code: 'DYNAMIC-TEST',
-          name: 'Văn phòng Thử nghiệm GPS',
-          latitude: 21.0285, // Will be updated by the user/system to their current coordinate to test easily!
-          longitude: 105.8542,
-          radius: 500, // Generous radius for testing
-          shiftStartTimes: ['08:30', '14:00']
-        }
-      ];
-
-      for (const loc of defaultLocations) {
-        const locRef = doc(db, LOCATIONS_COLLECTION, loc.id);
-        batch.set(locRef, loc);
-      }
-
-      // 2. Seed Default Employees
-      const defaultEmployees: Employee[] = [
-        {
-          id: 'ADMIN', // Admin
-          fullName: 'Quản trị viên',
-          locationId: 'HN-HQ',
-          status: 'active',
-          isAdmin: true
-        }
-      ];
-
-      for (const emp of defaultEmployees) {
-        const empRef = doc(db, EMPLOYEES_COLLECTION, emp.id);
-        batch.set(empRef, emp);
-      }
-
-      await batch.commit();
-      console.log('Database seeded successfully!');
-    }
-
-    // Always guarantee that the ADMIN account exists in the database
-    try {
-      const adminRef = doc(db, EMPLOYEES_COLLECTION, 'ADMIN');
-      const adminSnap = await getDoc(adminRef);
-      if (!adminSnap.exists()) {
-        console.log('ADMIN employee not found. Re-creating ADMIN account...');
-        await setDoc(adminRef, {
-          id: 'ADMIN',
-          fullName: 'Quản trị viên',
-          locationId: 'HN-HQ',
-          status: 'active',
-          isAdmin: true
-        });
-      }
-    } catch (adminErr) {
-      console.warn('Could not check/create ADMIN account:', adminErr);
-    }
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, 'seed_database');
-  }
+  // Hoàn toàn bỏ cơ chế tự động sinh dữ liệu mẫu để tránh làm nhiễu dữ liệu thực tế
+  return;
 }
 
 /**
