@@ -16,12 +16,15 @@ import {
   HelpCircle,
   CheckCircle2,
   AlertCircle,
-  X
+  X,
+  UserCog
 } from 'lucide-react';
+import { updateEmployeeProfile } from '../lib/firebase';
 
 interface EmployeeDashboardProps {
   employee: Employee;
   onLogout: () => void;
+  onUserUpdate?: (user: Employee) => void;
 }
 
 const isToday = (timestamp: number) => {
@@ -32,7 +35,7 @@ const isToday = (timestamp: number) => {
          d.getFullYear() === today.getFullYear();
 };
 
-export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashboardProps) {
+export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: EmployeeDashboardProps) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [assignedLoc, setAssignedLoc] = useState<Location | null>(null);
   const [logs, setLogs] = useState<CheckinLog[]>([]);
@@ -62,6 +65,64 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
     time: string;
     locationName: string;
   } | null>(null);
+
+  // Profile edit modal states
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [editFullName, setEditFullName] = useState(employee.fullName);
+  const [editEmployeeId, setEditEmployeeId] = useState(employee.id);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  useEffect(() => {
+    setEditFullName(employee.fullName);
+    setEditEmployeeId(employee.id);
+  }, [employee]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFullName.trim()) {
+      setProfileError('Họ và tên không được để trống.');
+      return;
+    }
+    if (!editEmployeeId.trim()) {
+      setProfileError('Số điện thoại hoặc mã đăng nhập không được để trống.');
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileError(null);
+
+    try {
+      const updatedEmployee: Employee = {
+        ...employee,
+        id: editEmployeeId.trim().toUpperCase(),
+        fullName: editFullName.trim(),
+      };
+
+      await updateEmployeeProfile(employee.id, updatedEmployee);
+
+      if (onUserUpdate) {
+        onUserUpdate(updatedEmployee);
+      }
+
+      setShowProfileModal(false);
+      setMsg({
+        text: 'Cập nhật thông tin đăng nhập thành công!',
+        isError: false,
+      });
+
+      // If ID changed, we also should refresh logs using the new ID
+      if (employee.id !== updatedEmployee.id) {
+        const logData = await getLogsForEmployee(updatedEmployee.id);
+        setLogs(logData);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setProfileError(err.message || 'Đã xảy ra lỗi khi lưu thông tin.');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   useEffect(() => {
     fetchInitialData();
@@ -471,7 +532,23 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
               <span className="inline-block px-2.5 py-0.5 bg-white/15 text-indigo-100 border border-white/25 text-[9px] font-extrabold tracking-widest uppercase rounded-md">
                 Mã nhân sự: {employee.id}
               </span>
-              <h2 className="text-2xl font-black tracking-tight text-white">{employee.fullName}</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-black tracking-tight text-white">{employee.fullName}</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditFullName(employee.fullName);
+                    setEditEmployeeId(employee.id);
+                    setProfileError(null);
+                    setShowProfileModal(true);
+                  }}
+                  id="open_edit_profile_btn"
+                  className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white transition-all cursor-pointer border border-white/10 flex items-center justify-center"
+                  title="Chỉnh sửa thông tin cá nhân và đăng nhập"
+                >
+                  <UserCog className="h-4.5 w-4.5" />
+                </button>
+              </div>
               <div className="flex items-center gap-1.5 text-indigo-100 text-sm">
                 <MapPin className="h-4 w-4 text-indigo-200 shrink-0" />
                 <span>Nơi làm việc: <strong className="text-white font-bold">{assignedLoc ? assignedLoc.name : 'Chưa gán'}</strong></span>
@@ -994,6 +1071,94 @@ export default function EmployeeDashboard({ employee, onLogout }: EmployeeDashbo
             >
               Xác nhận và Đóng
             </button>
+          </div>
+        </div>
+      )}
+      {/* Profile Edit Modal Dialogue */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <div 
+            className="absolute inset-0" 
+            onClick={() => {
+              if (!profileSaving) {
+                setShowProfileModal(false);
+              }
+            }}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 z-10 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-1.5">
+                <UserCog className="h-4.5 w-4.5 text-indigo-600" />
+                Thay đổi thông tin đăng nhập
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                disabled={profileSaving}
+                className="p-1 text-slate-400 hover:text-slate-650 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Họ và Tên
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  disabled={profileSaving}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Số điện thoại đăng nhập
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editEmployeeId}
+                  onChange={(e) => setEditEmployeeId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="Ví dụ: 0912345678"
+                  disabled={profileSaving}
+                />
+                <p className="text-[10px] text-slate-400 mt-1 italic leading-normal">
+                  * Đây là số điện thoại / tài khoản dùng để bạn đăng nhập vào hệ thống.
+                </p>
+              </div>
+
+              {profileError && (
+                <div className="p-3 bg-red-50 text-red-750 text-xs rounded-xl border border-red-100 font-medium">
+                  {profileError}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={profileSaving}
+                  onClick={() => setShowProfileModal(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 font-bold text-xs rounded-xl transition-all cursor-pointer text-center"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={profileSaving}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-550 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-500/10 transition-all cursor-pointer text-center disabled:opacity-50"
+                >
+                  {profileSaving ? 'Đang lưu...' : 'Lưu Thay đổi'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
