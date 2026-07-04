@@ -270,7 +270,7 @@ export default function AttendanceLogs() {
       const aoa: any[][] = [];
 
       // Row 1: Header row 1
-      const row1 = ["STT", "Họ và Tên", "Ca", "Thời gian"];
+      const row1 = ["STT", "Họ và Tên", "Ca"];
       row1.push(`THÁNG ${String(reportMonth).padStart(2, '0')}/${reportYear}`);
       for (let i = 2; i <= numDays; i++) {
         row1.push("");
@@ -278,7 +278,7 @@ export default function AttendanceLogs() {
       aoa.push(row1);
 
       // Row 2: Header row 2 with day numbers
-      const row2: any[] = ["", "", "Tên ca", "Giờ vào"];
+      const row2: any[] = ["", "", "Tên ca"];
       for (let i = 1; i <= numDays; i++) {
         row2.push(i);
       }
@@ -290,42 +290,83 @@ export default function AttendanceLogs() {
         { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
         // Họ và Tên (B1:B2)
         { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
-        // Ca (C1:D1)
-        { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
-        // THÁNG header (E1:last day)
-        { s: { r: 0, c: 4 }, e: { r: 0, c: 4 + numDays - 1 } }
+        // Ca (C1:C2)
+        { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } },
+        // THÁNG header (D1:last day)
+        { s: { r: 0, c: 3 }, e: { r: 0, c: 3 + numDays - 1 } }
       ];
 
+      // Sort current configured shifts chronologically to map to Ca 1, Ca 2, Ca 3...
+      const sortedConfigShifts = [...(targetLoc.shiftStartTimes || [])].sort((a, b) => {
+        const [hA, mA] = a.split(':').map(Number);
+        const [hB, mB] = b.split(':').map(Number);
+        return (hA * 60 + mA) - (hB * 60 + mB);
+      });
+
+      // Helper to map log's shift time to closest configured shift index
+      const getClosestShiftIndex = (logShift: string, configShifts: string[]): number => {
+        if (!configShifts || configShifts.length === 0) return 0;
+        const cleanLog = (logShift || '').trim();
+        if (!cleanLog) return 0;
+        
+        const [logH, logM] = cleanLog.split(':').map(Number);
+        if (isNaN(logH) || isNaN(logM)) return 0;
+        const logMinutes = logH * 60 + logM;
+        
+        let closestIndex = 0;
+        let minDiff = Infinity;
+        
+        configShifts.forEach((shift, index) => {
+          const [sH, sM] = shift.split(':').map(Number);
+          if (!isNaN(sH) && !isNaN(sM)) {
+            const shiftMinutes = sH * 60 + sM;
+            const diff = Math.abs(logMinutes - shiftMinutes);
+            if (diff < minDiff) {
+              minDiff = diff;
+              closestIndex = index;
+            }
+          }
+        });
+        
+        return closestIndex;
+      };
+
       // Generate employee rows
-      const S = targetLoc.shiftStartTimes.length;
       filteredEmployees.forEach((emp, empIdx) => {
         const startRow = aoa.length;
 
+        // Get unique shifts from both current configured shifts and employee's historical logs for this month
+        const empLogs = logs.filter(log => {
+          if (log.employeeId !== emp.id) return false;
+          if (log.type !== 'checkin') return false;
+          if (log.status !== 'success') return false;
+          
+          const logDate = new Date(log.timestamp);
+          return logDate.getFullYear() === reportYear &&
+                 (logDate.getMonth() + 1) === reportMonth;
+        });
+
+        const S = sortedConfigShifts.length;
         for (let j = 0; j < S; j++) {
-          const shiftTime = targetLoc.shiftStartTimes[j];
           const shiftName = `Ca ${j + 1}`;
 
           // We only show STT and Full Name in the first row of each employee (merged later)
           const sttValue = j === 0 ? empIdx + 1 : "";
           const fullNameValue = j === 0 ? emp.fullName : "";
 
-          const rowData = [sttValue, fullNameValue, shiftName, shiftTime];
+          const rowData = [sttValue, fullNameValue, shiftName];
 
           // Fill in check-in marker ('x') for each day
           for (let day = 1; day <= numDays; day++) {
-            const hasLog = logs.some(log => {
-              if (log.employeeId !== emp.id) return false;
-              if (log.type !== 'checkin') return false;
-              if (log.status !== 'success') return false;
-              
-              // Check shift match (ignore spacing, trim)
-              const logShift = (log.shift || '').trim();
-              if (logShift !== shiftTime.trim()) return false;
-
+            const hasLog = empLogs.some(log => {
               const logDate = new Date(log.timestamp);
-              return logDate.getFullYear() === reportYear &&
-                     (logDate.getMonth() + 1) === reportMonth &&
-                     logDate.getDate() === day;
+              if (logDate.getDate() !== day) return false;
+
+              const logShift = (log.shift || '').trim();
+              if (!logShift) return false;
+
+              const closestIndex = getClosestShiftIndex(logShift, sortedConfigShifts);
+              return closestIndex === j;
             });
 
             rowData.push(hasLog ? 'x' : '');
@@ -348,8 +389,7 @@ export default function AttendanceLogs() {
       const colWidths: any[] = [
         { wch: 6 },   // STT
         { wch: 22 },  // Họ và tên
-        { wch: 10 },  // Tên ca (Ca 1, etc.)
-        { wch: 10 }   // Giờ vào (08:00, etc.)
+        { wch: 12 }   // Tên ca (Ca 1, etc.)
       ];
       for (let i = 1; i <= numDays; i++) {
         colWidths.push({ wch: 4 }); // Narrow column width for day cells
