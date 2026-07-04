@@ -257,3 +257,45 @@ export async function addCheckinLog(log: Omit<CheckinLog, 'id'>): Promise<string
     handleFirestoreError(err, OperationType.CREATE, CHECKIN_LOGS_COLLECTION);
   }
 }
+
+export async function updateEmployeeProfile(oldId: string, updatedEmployee: Employee): Promise<void> {
+  try {
+    if (oldId === updatedEmployee.id) {
+      await saveEmployee(updatedEmployee);
+      return;
+    }
+
+    // Check if new ID is already taken
+    const existing = await getEmployeeById(updatedEmployee.id);
+    if (existing) {
+      throw new Error('Số điện thoại hoặc tài khoản mới này đã tồn tại trong hệ thống.');
+    }
+
+    // 1. Create new employee doc
+    const newDocRef = doc(db, EMPLOYEES_COLLECTION, updatedEmployee.id);
+    await setDoc(newDocRef, updatedEmployee);
+
+    // 2. Query and update all logs for this employee
+    const q = query(
+      collection(db, CHECKIN_LOGS_COLLECTION),
+      where('employeeId', '==', oldId)
+    );
+    const querySnapshot = await getDocs(q);
+    const batch = writeBatch(db);
+    querySnapshot.docs.forEach((d) => {
+      batch.update(d.ref, { 
+        employeeId: updatedEmployee.id, 
+        employeeName: updatedEmployee.fullName 
+      });
+    });
+    await batch.commit();
+
+    // 3. Delete old employee doc
+    const oldDocRef = doc(db, EMPLOYEES_COLLECTION, oldId);
+    await deleteDoc(oldDocRef);
+
+  } catch (err: any) {
+    throw err;
+  }
+}
+
