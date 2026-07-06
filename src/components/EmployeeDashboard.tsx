@@ -20,6 +20,7 @@ import {
   UserCog
 } from 'lucide-react';
 import { updateEmployeeProfile } from '../lib/firebase';
+import AttendanceCalendar from './AttendanceCalendar';
 
 interface EmployeeDashboardProps {
   employee: Employee;
@@ -36,6 +37,7 @@ const isToday = (timestamp: number) => {
 };
 
 export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: EmployeeDashboardProps) {
+  const [activeTab, setActiveTab] = useState<'attendance' | 'calendar'>('attendance');
   const [locations, setLocations] = useState<Location[]>([]);
   const [assignedLoc, setAssignedLoc] = useState<Location | null>(null);
   const [logs, setLogs] = useState<CheckinLog[]>([]);
@@ -578,438 +580,472 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
           <div className="absolute right-0 bottom-0 translate-x-8 translate-y-8 h-32 w-32 rounded-full bg-white/5 blur-xl" />
         </div>
 
-        {/* GPS Verification Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Geolocation Status Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
-                <Navigation className="h-4 w-4 text-indigo-600" />
-                Xác thực Vị trí GPS hiện tại
-              </h3>
+        {/* Elegant Tab Selector */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-250 shadow-inner w-full max-w-md mx-auto gap-1 mb-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab('attendance')}
+            className={`flex-1 py-3 px-4 text-xs font-black rounded-xl transition-all text-center flex items-center justify-center gap-2 cursor-pointer select-none ${
+              activeTab === 'attendance'
+                ? 'bg-white text-indigo-700 shadow-md border border-slate-200/50'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Clock className="h-4 w-4 shrink-0" />
+            <span>Chấm công hôm nay</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('calendar')}
+            className={`flex-1 py-3 px-4 text-xs font-black rounded-xl transition-all text-center flex items-center justify-center gap-2 cursor-pointer select-none ${
+              activeTab === 'calendar'
+                ? 'bg-white text-indigo-700 shadow-md border border-slate-200/50'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Calendar className="h-4 w-4 shrink-0" />
+            <span>Lịch sử tháng</span>
+          </button>
+        </div>
+
+        {activeTab === 'attendance' ? (
+          <>
+            {/* GPS Verification Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              <button
-                onClick={getGPSLocation}
-                disabled={gpsLoading}
-                id="refresh_gps_btn"
-                className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-750 border border-slate-200 transition-all cursor-pointer"
-                title="Lấy lại vị trí GPS"
-              >
-                <RefreshCw className={`h-4 w-4 ${gpsLoading ? 'animate-spin' : ''}`} />
-              </button>
+              {/* Geolocation Status Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
+                    <Navigation className="h-4 w-4 text-indigo-600" />
+                    Xác thực Vị trí GPS hiện tại
+                  </h3>
+                  
+                  <button
+                    onClick={getGPSLocation}
+                    disabled={gpsLoading}
+                    id="refresh_gps_btn"
+                    className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-750 border border-slate-200 transition-all cursor-pointer"
+                    title="Lấy lại vị trí GPS"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${gpsLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {gpsLoading ? (
+                  <div className="py-10 text-center space-y-3 bg-slate-50 rounded-xl border border-slate-200/50">
+                    <RefreshCw className="h-8 w-8 text-indigo-600 animate-spin mx-auto" />
+                    <p className="text-xs text-slate-500 font-medium">Đang quét sóng GPS vệ tinh...</p>
+                  </div>
+                ) : gpsError ? (
+                  <div id="gps_error_box" className="p-4 bg-red-50 border border-red-100 rounded-xl space-y-2 text-red-750 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-red-655">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Cảnh báo định vị</span>
+                    </div>
+                    <p className="text-red-600 leading-relaxed">{gpsError}</p>
+                    <button
+                      onClick={getGPSLocation}
+                      className="mt-1 px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-[10px] transition-all cursor-pointer"
+                    >
+                      Thử lại GPS
+                    </button>
+                  </div>
+                ) : coords ? (
+                  <div className="space-y-4" id="gps_success_box">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl">
+                        <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider mb-1">VĨ ĐỘ (LAT)</span>
+                        <span className="font-mono text-sm font-bold text-slate-700">{coords.latitude.toFixed(6)}</span>
+                      </div>
+                      <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl">
+                        <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider mb-1">KINH ĐỘ (LON)</span>
+                        <span className="font-mono text-sm font-bold text-slate-700">{coords.longitude.toFixed(6)}</span>
+                      </div>
+                    </div>
+
+                    {gpsAccuracy !== null && (
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Độ chính xác định vị:</span>
+                        <strong className="font-mono text-slate-700 font-extrabold">±{Math.round(gpsAccuracy)} mét</strong>
+                      </p>
+                    )}
+
+                    {/* Distance visual indicator */}
+                    {distance !== null && assignedLoc && (
+                      <div className={`p-4 rounded-xl border transition-all ${
+                        inRange 
+                          ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
+                          : 'bg-red-50 border-red-100 text-red-800'
+                      }`}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-semibold">Khoảng cách tới văn phòng:</span>
+                          <span className={`text-base font-black ${inRange ? 'text-emerald-650' : 'text-red-655'}`}>
+                            {formatDistance(distance)}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 flex items-start gap-2 text-xs">
+                          {inRange ? (
+                            <>
+                              <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                              <p className="text-emerald-700 leading-relaxed">Bạn đã ở <strong>Hợp lệ bên trong</strong> phạm vi văn phòng. Các tác vụ điểm danh hiện đã sẵn sàng.</p>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="h-4.5 w-4.5 text-red-500 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <p className="font-bold">Bạn đang ở Ngoài bán kính tối đa của văn phòng.</p>
+                                <p className="text-[11px] text-red-650">Bạn vui lòng di chuyển lại gần văn phòng để thực hiện điểm danh. (Phạm vi tối đa: {assignedLoc.radius}m).</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-xs text-slate-500 italic bg-slate-50 rounded-xl border border-slate-150">
+                    Chưa có dữ liệu GPS. Hãy click nút reload bên trên để bắt đầu định vị.
+                  </div>
+                )}
+
+                {/* Special Test Hack for Developer: Let them align DYNAMIC-TEST to their coordinates */}
+                {employee.locationId === 'DYNAMIC-TEST' && coords && assignedLoc && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-100 rounded-xl space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs text-amber-800 font-bold">
+                      <Sparkles className="h-4 w-4 text-amber-600" />
+                      <span>Trình giả lập kiểm thử nhanh GPS</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700 leading-relaxed">
+                      Vì bạn đang gán ở văn phòng thử nghiệm, bạn có thể thiết lập tâm địa điểm trùng khớp với tọa độ GPS hiện tại của bạn để kiểm thử Check-in sáng đèn ngay lập tức!
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleUpdateTestLocationCoords}
+                      disabled={actionLoading}
+                      className="w-full py-1.5 bg-amber-600 hover:bg-amber-550 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer text-center"
+                    >
+                      Thiết lập văn phòng tại đây (Distance = 0m)
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Core Check-in / Check-out Panel */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4">
+                <div>
+                  <h3 className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider mb-4">
+                    <Clock className="h-4 w-4 text-indigo-600" />
+                    Điểm danh ca làm việc
+                  </h3>
+
+                  {/* Today's Working Location Selector */}
+                  <div className="mb-4">
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                      Địa điểm làm việc hôm nay *
+                    </label>
+                    <select
+                      value={assignedLoc?.id || ''}
+                      onChange={(e) => {
+                        const found = locations.find(l => l.id === e.target.value);
+                        if (found) {
+                          setAssignedLoc(found);
+                          if (found.shiftStartTimes && found.shiftStartTimes.length > 0) {
+                            setSelectedShift(found.shiftStartTimes[0]);
+                          } else {
+                            setSelectedShift('');
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                    >
+                      {locations.map((loc) => {
+                        const isDefault = loc.id === employee.locationId;
+                        return (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.name} {isDefault ? ' (Cơ sở chính)' : ' (Điều động tạm thời)'}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {assignedLoc && assignedLoc.id !== employee.locationId && (
+                      <div className="mt-2.5 p-3 bg-indigo-50 border border-indigo-150 rounded-xl flex items-start gap-1.5 text-[11px] text-indigo-800 font-medium leading-relaxed">
+                        <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                        <p>
+                          Bạn đang chọn làm việc tại <strong className="font-extrabold">{assignedLoc.name}</strong> (Khác với cơ sở chính <strong>{locations.find(l => l.id === employee.locationId)?.name || employee.locationId}</strong>). Hệ thống sẽ tự động ghi chú "Điều động tạm thời" vào nhật ký chấm công.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Shift Selector */}
+                  {assignedLoc && assignedLoc.shiftStartTimes && assignedLoc.shiftStartTimes.length > 0 && (
+                    <div className="mb-4">
+                      <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                        Chọn ca làm việc *
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {assignedLoc.shiftStartTimes.map((shift) => {
+                          const isSelected = selectedShift === shift;
+                          return (
+                            <button
+                              key={shift}
+                              type="button"
+                              onClick={() => setSelectedShift(shift)}
+                              className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                                isSelected 
+                                  ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm' 
+                                  : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-indigo-600' : 'bg-slate-300'}`} />
+                              <span>Ca {shift}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Late check warning */}
+                  {inRange && isLate && (
+                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-2 mb-4">
+                      <div className="flex items-center gap-1.5 text-amber-850 text-xs font-bold">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <span>Hệ thống phát hiện bạn đi muộn</span>
+                      </div>
+                      <p className="text-[11px] text-amber-700">
+                        Thời gian hiện tại đã trễ hơn giờ vào ca ({selectedShift}). Vui lòng điền lý do đi muộn của bạn bên dưới:
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Nhập lý do đi muộn (ví dụ: Kẹt xe, hỏng xe...)"
+                        value={lateReason}
+                        onChange={(e) => setLateReason(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none text-xs focus:ring-1 focus:ring-amber-500"
+                      />
+                    </div>
+                  )}
+
+                  {/* Too early check warning */}
+                  {inRange && isTooEarly && (
+                    <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl space-y-1.5 mb-4">
+                      <div className="flex items-center gap-1.5 text-rose-850 text-xs font-bold">
+                        <AlertCircle className="h-4 w-4 text-rose-655" />
+                        <span>Chưa đến giờ Check-in</span>
+                      </div>
+                      <p className="text-[11px] text-rose-700 leading-relaxed">
+                        Bạn đang thực hiện Check-in quá sớm cho ca <strong className="font-extrabold">{selectedShift}</strong>. Hệ thống chỉ cho phép Check-in tối đa <strong>{assignedLoc?.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15} phút trước giờ vào ca</strong>.
+                      </p>
+                      <p className="text-[10px] text-rose-600 font-semibold">
+                        Thời gian bắt đầu được phép điểm danh: {(() => {
+                          const [shiftHour, shiftMin] = selectedShift.split(':').map(Number);
+                          const shiftMinutesTotal = shiftHour * 60 + shiftMin;
+                          const buffer = assignedLoc?.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15;
+                          const earliestMinutesTotal = shiftMinutesTotal - buffer;
+                          const adjustedMinutes = earliestMinutesTotal < 0 ? (earliestMinutesTotal + 1440) : earliestMinutesTotal;
+                          const earliestHour = Math.floor(adjustedMinutes / 60) % 24;
+                          const earliestMin = adjustedMinutes % 60;
+                          return `${String(earliestHour).padStart(2, '0')}:${String(earliestMin).padStart(2, '0')}`;
+                        })()}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Already Completed Shifts Indicator & Shift Warnings */}
+                  {(hasCheckedInToday || hasCheckedOutToday || !!uncheckedPrevShift || (selectedShift && !hasCheckedInToday)) && (
+                    <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-[11px] text-indigo-800 space-y-1 mb-4">
+                      <div className="flex items-center gap-1 font-bold">
+                        <CheckCircle className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>Trạng thái ca {selectedShift} hôm nay:</span>
+                      </div>
+                      <ul className="list-disc pl-4 space-y-1 font-medium text-slate-700">
+                        {hasCheckedInToday && (
+                          <li>Ca {selectedShift}: <strong className="font-extrabold text-emerald-700">Đã Check-in thành công</strong>.</li>
+                        )}
+                        {hasCheckedOutToday && (
+                          <li>Ca {selectedShift}: <strong className="font-extrabold text-indigo-700">Đã Check-out thành công</strong>.</li>
+                        )}
+                        {!hasCheckedInToday && !hasCheckedOutToday && selectedShift && (
+                          <li className="text-amber-800">Ca {selectedShift}: Chưa ghi nhận Check-in hôm nay.</li>
+                        )}
+                        {uncheckedPrevShift && (
+                          <li className="text-red-655 bg-red-50/50 p-2 border border-red-100 rounded-lg list-none -ml-4 mt-1 flex items-start gap-1.5 font-semibold">
+                            <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                            <span>
+                              Bạn chưa Check-out <strong>Ca {uncheckedPrevShift}</strong>. Vui lòng chuyển sang chọn Ca {uncheckedPrevShift} để Check-out trước khi Check-in ca {selectedShift}!
+                            </span>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Status Messages */}
+                  {msg && (
+                    <div className={`p-3 text-xs rounded-xl border mb-4 ${
+                      msg.isError 
+                        ? 'bg-red-50 text-red-750 border-red-100' 
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                    }`}>
+                      {msg.text}
+                    </div>
+                  )}
+                </div>
+
+                {/* Attendance Buttons Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    disabled={!inRange || actionLoading || isTooEarly || hasCheckedInToday || hasCheckedOutToday || !!uncheckedPrevShift || (isLate && !lateReason.trim())}
+                    onClick={() => handleLogAttendance('checkin')}
+                    id="btn_checkin_submit"
+                    className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
+                      hasCheckedInToday
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-600 cursor-not-allowed'
+                        : hasCheckedOutToday
+                          ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                          : !!uncheckedPrevShift
+                            ? 'bg-red-50 border-red-200 text-red-600 cursor-not-allowed'
+                            : inRange && !isTooEarly
+                              ? 'bg-emerald-600 border-emerald-550 text-white hover:bg-emerald-550 hover:shadow-lg hover:shadow-emerald-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
+                              : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="text-xl">📥</span>
+                    <span>
+                      {hasCheckedInToday
+                        ? 'Đã Check-in'
+                        : hasCheckedOutToday
+                          ? 'Đã Check-out'
+                          : !!uncheckedPrevShift
+                            ? 'Cần Check-out ca trước'
+                            : isTooEarly
+                              ? 'Chưa đến giờ'
+                              : 'Check-in Vào Ca'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!inRange || actionLoading || !hasCheckedInToday || hasCheckedOutToday}
+                    onClick={() => handleLogAttendance('checkout')}
+                    id="btn_checkout_submit"
+                    className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
+                      hasCheckedOutToday
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-600 cursor-not-allowed'
+                        : !hasCheckedInToday
+                          ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                          : inRange
+                            ? 'bg-indigo-600 border-indigo-550 text-white hover:bg-indigo-550 hover:shadow-lg hover:shadow-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
+                            : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="text-xl">📤</span>
+                    <span>
+                      {hasCheckedOutToday
+                        ? 'Đã Check-out'
+                        : !hasCheckedInToday
+                          ? 'Chưa Check-in'
+                          : 'Check-out Về'}
+                    </span>
+                  </button>
+                </div>
+
+                <p className="text-[9px] text-slate-400 text-center italic mt-2">
+                  * Nút điểm danh sẽ tự động sáng lên khi GPS định vị bạn ở trong bán kính văn phòng thành công.
+                </p>
+              </div>
+
             </div>
 
-            {gpsLoading ? (
-              <div className="py-10 text-center space-y-3 bg-slate-50 rounded-xl border border-slate-200/50">
-                <RefreshCw className="h-8 w-8 text-indigo-600 animate-spin mx-auto" />
-                <p className="text-xs text-slate-500 font-medium">Đang quét sóng GPS vệ tinh...</p>
+            {/* Attendance Log History Panel */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
+                  <History className="h-4 w-4 text-indigo-600" />
+                  Lịch sử điểm danh cá nhân
+                </h3>
+                <span className="text-xs text-slate-500 font-mono">Mã: {employee.id}</span>
               </div>
-            ) : gpsError ? (
-              <div id="gps_error_box" className="p-4 bg-red-50 border border-red-100 rounded-xl space-y-2 text-red-750 text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-red-650">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>Cảnh báo định vị</span>
+
+              {logs.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 italic text-xs bg-slate-50 rounded-xl border border-slate-150">
+                  Bạn chưa thực hiện check-in/out nào trong dữ liệu lưu trữ.
                 </div>
-                <p className="text-red-600 leading-relaxed">{gpsError}</p>
-                <button
-                  onClick={getGPSLocation}
-                  className="mt-1 px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-[10px] transition-all cursor-pointer"
-                >
-                  Thử lại GPS
-                </button>
-              </div>
-            ) : coords ? (
-              <div className="space-y-4" id="gps_success_box">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl">
-                    <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider mb-1">VĨ ĐỘ (LAT)</span>
-                    <span className="font-mono text-sm font-bold text-slate-700">{coords.latitude.toFixed(6)}</span>
-                  </div>
-                  <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl">
-                    <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider mb-1">KINH ĐỘ (LON)</span>
-                    <span className="font-mono text-sm font-bold text-slate-700">{coords.longitude.toFixed(6)}</span>
-                  </div>
-                </div>
-
-                {gpsAccuracy !== null && (
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                    <span>Độ chính xác định vị:</span>
-                    <strong className="font-mono text-slate-700 font-extrabold">±{Math.round(gpsAccuracy)} mét</strong>
-                  </p>
-                )}
-
-                {/* Distance visual indicator */}
-                {distance !== null && assignedLoc && (
-                  <div className={`p-4 rounded-xl border transition-all ${
-                    inRange 
-                      ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
-                      : 'bg-red-50 border-red-100 text-red-800'
-                  }`}>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-semibold">Khoảng cách tới văn phòng:</span>
-                      <span className={`text-base font-black ${inRange ? 'text-emerald-650' : 'text-red-655'}`}>
-                        {formatDistance(distance)}
-                      </span>
-                    </div>
-
-                    <div className="mt-2 flex items-start gap-2 text-xs">
-                      {inRange ? (
-                        <>
-                          <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <p className="text-emerald-700 leading-relaxed">Bạn đã ở <strong>Hợp lệ bên trong</strong> phạm vi văn phòng. Các tác vụ điểm danh hiện đã sẵn sàng.</p>
-                        </>
-                      ) : (
-                        <>
-                          <AlertTriangle className="h-4.5 w-4.5 text-red-500 shrink-0 mt-0.5" />
-                          <div className="space-y-1">
-                            <p className="font-bold">Bạn đang ở Ngoài bán kính tối đa của văn phòng.</p>
-                            <p className="text-[11px] text-red-650">Bạn vui lòng di chuyển lại gần văn phòng để thực hiện điểm danh. (Phạm vi tối đa: {assignedLoc.radius}m).</p>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-xs text-slate-500 italic bg-slate-50 rounded-xl border border-slate-150">
-                Chưa có dữ liệu GPS. Hãy click nút reload bên trên để bắt đầu định vị.
-              </div>
-            )}
-
-            {/* Special Test Hack for Developer: Let them align DYNAMIC-TEST to their coordinates */}
-            {employee.locationId === 'DYNAMIC-TEST' && coords && assignedLoc && (
-              <div className="p-3.5 bg-amber-50 border border-amber-100 rounded-xl space-y-2">
-                <div className="flex items-center gap-1.5 text-xs text-amber-800 font-bold">
-                  <Sparkles className="h-4 w-4 text-amber-600" />
-                  <span>Trình giả lập kiểm thử nhanh GPS</span>
-                </div>
-                <p className="text-[11px] text-amber-700 leading-relaxed">
-                  Vì bạn đang gán ở văn phòng thử nghiệm, bạn có thể thiết lập tâm địa điểm trùng khớp với tọa độ GPS hiện tại của bạn để kiểm thử Check-in sáng đèn ngay lập tức!
-                </p>
-                <button
-                  type="button"
-                  onClick={handleUpdateTestLocationCoords}
-                  disabled={actionLoading}
-                  className="w-full py-1.5 bg-amber-600 hover:bg-amber-550 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer text-center"
-                >
-                  Thiết lập văn phòng tại đây (Distance = 0m)
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Core Check-in / Check-out Panel */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4">
-            <div>
-              <h3 className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider mb-4">
-                <Clock className="h-4 w-4 text-indigo-600" />
-                Điểm danh ca làm việc
-              </h3>
-
-              {/* Today's Working Location Selector */}
-              <div className="mb-4">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
-                  Địa điểm làm việc hôm nay *
-                </label>
-                <select
-                  value={assignedLoc?.id || ''}
-                  onChange={(e) => {
-                    const found = locations.find(l => l.id === e.target.value);
-                    if (found) {
-                      setAssignedLoc(found);
-                      if (found.shiftStartTimes && found.shiftStartTimes.length > 0) {
-                        setSelectedShift(found.shiftStartTimes[0]);
-                      } else {
-                        setSelectedShift('');
-                      }
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
-                >
-                  {locations.map((loc) => {
-                    const isDefault = loc.id === employee.locationId;
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {logs.map((log) => {
+                    const isSuccess = log.status === 'success';
                     return (
-                      <option key={loc.id} value={loc.id}>
-                        {loc.name} {isDefault ? ' (Cơ sở chính)' : ' (Điều động tạm thời)'}
-                      </option>
+                      <div
+                        key={log.id}
+                        className="flex justify-between items-center p-3.5 bg-slate-50/50 border border-slate-150 rounded-xl hover:border-slate-200 transition-all text-xs"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                              log.type === 'checkin'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                            }`}>
+                              {log.type === 'checkin' ? 'Check-in' : 'Check-out'}
+                            </span>
+
+                            {log.shift && (
+                              <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-650 text-[9px] font-bold rounded">
+                                Ca {log.shift}
+                              </span>
+                            )}
+                            
+                            <span className="font-bold text-slate-800 font-mono">{formatLogTime(log.timestamp)}</span>
+                          </div>
+                          
+                          <div className="text-slate-500 flex flex-wrap gap-x-3 text-[11px]">
+                            <span>Khoảng cách: <strong className="text-slate-600">{formatDistance(log.distance)}</strong></span>
+                            <span className="font-mono text-slate-400">({log.latitude.toFixed(4)}, {log.longitude.toFixed(4)})</span>
+                          </div>
+                          
+                          {log.isLate && (
+                            <div className="flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-100 w-fit">
+                              <span>⚠️ Trễ ca. Lý do: "{log.lateReason || 'Không ghi rõ'}"</span>
+                            </div>
+                          )}
+
+                          {log.isTemporary && log.note && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-xl border border-indigo-150 w-fit font-medium">
+                              <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                              <span>{log.note}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 ml-3">
+                          {isSuccess ? (
+                            <span className="flex items-center gap-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[9px] rounded-full border border-emerald-100">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Hợp lệ
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-0.5 px-2 py-0.5 bg-red-50 text-red-750 font-bold text-[9px] rounded-full border border-red-100">
+                              <AlertCircle className="h-3 w-3" />
+                              Ngoài vùng
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
-                </select>
-
-                {assignedLoc && assignedLoc.id !== employee.locationId && (
-                  <div className="mt-2.5 p-3 bg-indigo-50 border border-indigo-150 rounded-xl flex items-start gap-1.5 text-[11px] text-indigo-800 font-medium leading-relaxed">
-                    <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
-                    <p>
-                      Bạn đang chọn làm việc tại <strong className="font-extrabold">{assignedLoc.name}</strong> (Khác với cơ sở chính <strong>{locations.find(l => l.id === employee.locationId)?.name || employee.locationId}</strong>). Hệ thống sẽ tự động ghi chú "Điều động tạm thời" vào nhật ký chấm công.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Shift Selector */}
-              {assignedLoc && assignedLoc.shiftStartTimes && assignedLoc.shiftStartTimes.length > 0 && (
-                <div className="mb-4">
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
-                    Chọn ca làm việc *
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {assignedLoc.shiftStartTimes.map((shift) => {
-                      const isSelected = selectedShift === shift;
-                      return (
-                        <button
-                          key={shift}
-                          type="button"
-                          onClick={() => setSelectedShift(shift)}
-                          className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
-                            isSelected 
-                              ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm' 
-                              : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-indigo-600' : 'bg-slate-300'}`} />
-                          <span>Ca {shift}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Late check warning */}
-              {inRange && isLate && (
-                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-2 mb-4">
-                  <div className="flex items-center gap-1.5 text-amber-850 text-xs font-bold">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    <span>Hệ thống phát hiện bạn đi muộn</span>
-                  </div>
-                  <p className="text-[11px] text-amber-700">
-                    Thời gian hiện tại đã trễ hơn giờ vào ca ({selectedShift}). Vui lòng điền lý do đi muộn của bạn bên dưới:
-                  </p>
-                  <input
-                    type="text"
-                    placeholder="Nhập lý do đi muộn (ví dụ: Kẹt xe, hỏng xe...)"
-                    value={lateReason}
-                    onChange={(e) => setLateReason(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none text-xs focus:ring-1 focus:ring-amber-500"
-                  />
-                </div>
-              )}
-
-              {/* Too early check warning */}
-              {inRange && isTooEarly && (
-                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl space-y-1.5 mb-4">
-                  <div className="flex items-center gap-1.5 text-rose-850 text-xs font-bold">
-                    <AlertCircle className="h-4 w-4 text-rose-650" />
-                    <span>Chưa đến giờ Check-in</span>
-                  </div>
-                  <p className="text-[11px] text-rose-700 leading-relaxed">
-                    Bạn đang thực hiện Check-in quá sớm cho ca <strong className="font-extrabold">{selectedShift}</strong>. Hệ thống chỉ cho phép Check-in tối đa <strong>{assignedLoc?.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15} phút trước giờ vào ca</strong>.
-                  </p>
-                  <p className="text-[10px] text-rose-600 font-semibold">
-                    Thời gian bắt đầu được phép điểm danh: {(() => {
-                      const [shiftHour, shiftMin] = selectedShift.split(':').map(Number);
-                      const shiftMinutesTotal = shiftHour * 60 + shiftMin;
-                      const buffer = assignedLoc?.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15;
-                      const earliestMinutesTotal = shiftMinutesTotal - buffer;
-                      const adjustedMinutes = earliestMinutesTotal < 0 ? (earliestMinutesTotal + 1440) : earliestMinutesTotal;
-                      const earliestHour = Math.floor(adjustedMinutes / 60) % 24;
-                      const earliestMin = adjustedMinutes % 60;
-                      return `${String(earliestHour).padStart(2, '0')}:${String(earliestMin).padStart(2, '0')}`;
-                    })()}
-                  </p>
-                </div>
-              )}
-
-              {/* Already Completed Shifts Indicator & Shift Warnings */}
-              {(hasCheckedInToday || hasCheckedOutToday || !!uncheckedPrevShift || (selectedShift && !hasCheckedInToday)) && (
-                <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-[11px] text-indigo-800 space-y-1 mb-4">
-                  <div className="flex items-center gap-1 font-bold">
-                    <CheckCircle className="h-3.5 w-3.5 text-indigo-600" />
-                    <span>Trạng thái ca {selectedShift} hôm nay:</span>
-                  </div>
-                  <ul className="list-disc pl-4 space-y-1 font-medium text-slate-700">
-                    {hasCheckedInToday && (
-                      <li>Ca {selectedShift}: <strong className="font-extrabold text-emerald-700">Đã Check-in thành công</strong>.</li>
-                    )}
-                    {hasCheckedOutToday && (
-                      <li>Ca {selectedShift}: <strong className="font-extrabold text-indigo-700">Đã Check-out thành công</strong>.</li>
-                    )}
-                    {!hasCheckedInToday && !hasCheckedOutToday && selectedShift && (
-                      <li className="text-amber-800">Ca {selectedShift}: Chưa ghi nhận Check-in hôm nay.</li>
-                    )}
-                    {uncheckedPrevShift && (
-                      <li className="text-red-650 bg-red-50/50 p-2 border border-red-100 rounded-lg list-none -ml-4 mt-1 flex items-start gap-1.5 font-semibold">
-                        <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <span>
-                          Bạn chưa Check-out <strong>Ca {uncheckedPrevShift}</strong>. Vui lòng chuyển sang chọn Ca {uncheckedPrevShift} để Check-out trước khi Check-in ca {selectedShift}!
-                        </span>
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              )}
-
-              {/* Status Messages */}
-              {msg && (
-                <div className={`p-3 text-xs rounded-xl border mb-4 ${
-                  msg.isError 
-                    ? 'bg-red-50 text-red-750 border-red-100' 
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-100'
-                }`}>
-                  {msg.text}
                 </div>
               )}
             </div>
-
-            {/* Attendance Buttons Grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                disabled={!inRange || actionLoading || isTooEarly || hasCheckedInToday || hasCheckedOutToday || !!uncheckedPrevShift || (isLate && !lateReason.trim())}
-                onClick={() => handleLogAttendance('checkin')}
-                id="btn_checkin_submit"
-                className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
-                  hasCheckedInToday
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600 cursor-not-allowed'
-                    : hasCheckedOutToday
-                      ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
-                      : !!uncheckedPrevShift
-                        ? 'bg-red-50 border-red-200 text-red-600 cursor-not-allowed'
-                        : inRange && !isTooEarly
-                          ? 'bg-emerald-600 border-emerald-550 text-white hover:bg-emerald-550 hover:shadow-lg hover:shadow-emerald-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
-                          : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
-                }`}
-              >
-                <span className="text-xl">📥</span>
-                <span>
-                  {hasCheckedInToday
-                    ? 'Đã Check-in'
-                    : hasCheckedOutToday
-                      ? 'Đã Check-out'
-                      : !!uncheckedPrevShift
-                        ? 'Cần Check-out ca trước'
-                        : isTooEarly
-                          ? 'Chưa đến giờ'
-                          : 'Check-in Vào Ca'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                disabled={!inRange || actionLoading || !hasCheckedInToday || hasCheckedOutToday}
-                onClick={() => handleLogAttendance('checkout')}
-                id="btn_checkout_submit"
-                className={`py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all text-center border font-bold text-xs select-none cursor-pointer ${
-                  hasCheckedOutToday
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600 cursor-not-allowed'
-                    : !hasCheckedInToday
-                      ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
-                      : inRange
-                        ? 'bg-indigo-600 border-indigo-550 text-white hover:bg-indigo-550 hover:shadow-lg hover:shadow-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200'
-                        : 'bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed'
-                }`}
-              >
-                <span className="text-xl">📤</span>
-                <span>
-                  {hasCheckedOutToday
-                    ? 'Đã Check-out'
-                    : !hasCheckedInToday
-                      ? 'Chưa Check-in'
-                      : 'Check-out Về'}
-                </span>
-              </button>
-            </div>
-
-            <p className="text-[9px] text-slate-400 text-center italic mt-2">
-              * Nút điểm danh sẽ tự động sáng lên khi GPS định vị bạn ở trong bán kính văn phòng thành công.
-            </p>
-          </div>
-
-        </div>
-
-        {/* Attendance Log History Panel */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-            <h3 className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
-              <History className="h-4 w-4 text-indigo-600" />
-              Lịch sử điểm danh cá nhân
-            </h3>
-            <span className="text-xs text-slate-500 font-mono">Mã: {employee.id}</span>
-          </div>
-
-          {logs.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 italic text-xs bg-slate-50 rounded-xl border border-slate-150">
-              Bạn chưa thực hiện check-in/out nào trong dữ liệu lưu trữ.
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {logs.map((log) => {
-                const isSuccess = log.status === 'success';
-                return (
-                  <div
-                    key={log.id}
-                    className="flex justify-between items-center p-3.5 bg-slate-50/50 border border-slate-150 rounded-xl hover:border-slate-200 transition-all text-xs"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                          log.type === 'checkin'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                        }`}>
-                          {log.type === 'checkin' ? 'Check-in' : 'Check-out'}
-                        </span>
-
-                        {log.shift && (
-                          <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-650 text-[9px] font-bold rounded">
-                            Ca {log.shift}
-                          </span>
-                        )}
-                        
-                        <span className="font-bold text-slate-800 font-mono">{formatLogTime(log.timestamp)}</span>
-                      </div>
-                      
-                      <div className="text-slate-500 flex flex-wrap gap-x-3 text-[11px]">
-                        <span>Khoảng cách: <strong className="text-slate-600">{formatDistance(log.distance)}</strong></span>
-                        <span className="font-mono text-slate-400">({log.latitude.toFixed(4)}, {log.longitude.toFixed(4)})</span>
-                      </div>
-                      
-                      {log.isLate && (
-                        <div className="flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-100 w-fit">
-                          <span>⚠️ Trễ ca. Lý do: "{log.lateReason || 'Không ghi rõ'}"</span>
-                        </div>
-                      )}
-
-                      {log.isTemporary && log.note && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-xl border border-indigo-150 w-fit font-medium">
-                          <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                          <span>{log.note}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0 ml-3">
-                      {isSuccess ? (
-                        <span className="flex items-center gap-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[9px] rounded-full border border-emerald-100">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Hợp lệ
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-0.5 px-2 py-0.5 bg-red-50 text-red-750 font-bold text-[9px] rounded-full border border-red-100">
-                          <AlertCircle className="h-3 w-3" />
-                          Ngoài vùng
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          </>
+        ) : (
+          <AttendanceCalendar logs={logs} shifts={assignedLoc?.shiftStartTimes || []} />
+        )}
 
       </main>
 
