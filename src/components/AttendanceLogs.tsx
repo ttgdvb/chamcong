@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckinLog, Location } from '../types';
+import { CheckinLog, Location, Employee } from '../types';
 import { getAllLogs, getAllLocations, getAllEmployees } from '../lib/firebase';
 import { Calendar, Filter, Search, Clock, MapPin, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import { formatDistance } from '../lib/geo';
@@ -16,11 +16,12 @@ const getTodayISO = () => {
 export default function AttendanceLogs() {
   const [logs, setLogs] = useState<CheckinLog[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'checkin' | 'checkout'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'checkin' | 'checkout' | 'not_checked_in'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'error'>('all');
   const [filterLate, setFilterLate] = useState<'all' | 'late'>('all');
   const [filterLocation, setFilterLocation] = useState<string>('all');
@@ -34,12 +35,14 @@ export default function AttendanceLogs() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const [logsData, locationsData] = await Promise.all([
+      const [logsData, locationsData, employeesData] = await Promise.all([
         getAllLogs(),
-        getAllLocations()
+        getAllLocations(),
+        getAllEmployees()
       ]);
       setLogs(logsData || []);
       setLocations(locationsData || []);
+      setEmployees(employeesData || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -100,60 +103,151 @@ export default function AttendanceLogs() {
     }
   };
 
-  const filteredLogs = logs.filter(log => {
-    // 1. Search Query
-    const query = searchQuery.toLowerCase().trim();
-    if (query) {
-      const empId = log.employeeId.toLowerCase();
-      const empName = (log.employeeName || '').toLowerCase();
-      const locName = (log.locationName || '').toLowerCase();
-      if (!empId.includes(query) && !empName.includes(query) && !locName.includes(query)) {
+  const filteredLogs = React.useMemo(() => {
+    if (filterType === 'not_checked_in') {
+      const dates: string[] = [];
+      if (filterStartDate && filterEndDate) {
+        const start = new Date(filterStartDate + 'T00:00:00');
+        const end = new Date(filterEndDate + 'T00:00:00');
+        let current = new Date(start);
+        let count = 0;
+        while (current <= end && count < 31) {
+          const y = current.getFullYear();
+          const m = String(current.getMonth() + 1).padStart(2, '0');
+          const d = String(current.getDate()).padStart(2, '0');
+          dates.push(`${y}-${m}-${d}`);
+          current.setDate(current.getDate() + 1);
+          count++;
+        }
+      } else if (filterStartDate) {
+        dates.push(filterStartDate);
+      } else if (filterEndDate) {
+        dates.push(filterEndDate);
+      } else {
+        dates.push(getTodayISO());
+      }
+
+      const list: any[] = [];
+      dates.forEach(date => {
+        employees.forEach(emp => {
+          // Skip admins
+          if (emp.isAdmin) return;
+          // Skip inactive
+          if (emp.status === 'inactive') return;
+          
+          // Filter Location (Cơ sở)
+          if (filterLocation !== 'all' && emp.locationId !== filterLocation) {
+            return;
+          }
+
+          // Search Query
+          const queryStr = searchQuery.toLowerCase().trim();
+          if (queryStr) {
+            const empId = emp.id.toLowerCase();
+            const empName = emp.fullName.toLowerCase();
+            const locName = (locations.find(l => l.id === emp.locationId)?.name || '').toLowerCase();
+            if (!empId.includes(queryStr) && !empName.includes(queryStr) && !locName.includes(queryStr)) {
+              return;
+            }
+          }
+
+          // Check if there is a successful check-in log for this employee on this date
+          const hasCheckin = logs.some(log => {
+            if (log.employeeId !== emp.id) return false;
+            if (log.type !== 'checkin') return false;
+            if (log.status !== 'success') return false;
+            
+            const d = new Date(log.timestamp);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const logDateStr = `${year}-${month}-${day}`;
+            
+            return logDateStr === date;
+          });
+
+          if (!hasCheckin) {
+            const [y, m, d] = date.split('-').map(Number);
+            const virtualTime = new Date(y, m - 1, d, 17, 30, 0, 0).getTime();
+            
+            list.push({
+              id: `virtual-${emp.id}-${date}`,
+              employeeId: emp.id,
+              employeeName: emp.fullName,
+              timestamp: virtualTime,
+              locationName: locations.find(l => l.id === emp.locationId)?.name || 'Chưa rõ',
+              type: 'not_checked_in',
+              status: 'error',
+              distance: 0,
+              latitude: 0,
+              longitude: 0,
+              isLate: false,
+              isTemporary: false,
+              note: `Chưa Check-in ngày ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`,
+              virtualDate: date,
+            });
+          }
+        });
+      });
+
+      return list.sort((a, b) => b.timestamp - a.timestamp);
+    }
+
+    return logs.filter(log => {
+      // 1. Search Query
+      const query = searchQuery.toLowerCase().trim();
+      if (query) {
+        const empId = log.employeeId.toLowerCase();
+        const empName = (log.employeeName || '').toLowerCase();
+        const locName = (log.locationName || '').toLowerCase();
+        if (!empId.includes(query) && !empName.includes(query) && !locName.includes(query)) {
+          return false;
+        }
+      }
+
+      // 2. Filter Type
+      if (filterType !== 'all' && log.type !== filterType) {
         return false;
       }
-    }
 
-    // 2. Filter Type
-    if (filterType !== 'all' && log.type !== filterType) {
-      return false;
-    }
-
-    // 3. Filter Status
-    if (filterStatus !== 'all' && log.status !== filterStatus) {
-      return false;
-    }
-
-    // 4. Filter Late
-    if (filterLate === 'late' && !log.isLate) {
-      return false;
-    }
-
-    // 5. Filter Location (Cơ sở)
-    if (filterLocation !== 'all' && log.locationName) {
-      const targetLoc = locations.find(l => l.id === filterLocation);
-      if (targetLoc && log.locationName !== targetLoc.name) {
+      // 3. Filter Status
+      if (filterStatus !== 'all' && log.status !== filterStatus) {
         return false;
       }
-    }
 
-    // 6. Filter Date range
-    if (filterStartDate) {
-      const [y, m, d] = filterStartDate.split('-').map(Number);
-      const startTs = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
-      if (log.timestamp < startTs) {
+      // 4. Filter Late
+      if (filterLate === 'late' && !log.isLate) {
         return false;
       }
-    }
 
-    if (filterEndDate) {
-      const [y, m, d] = filterEndDate.split('-').map(Number);
-      const endTs = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
-      if (log.timestamp > endTs) {
-        return false;
+      // 5. Filter Location (Cơ sở)
+      if (filterLocation !== 'all' && log.locationName) {
+        const targetLoc = locations.find(l => l.id === filterLocation);
+        if (targetLoc && log.locationName !== targetLoc.name) {
+          return false;
+        }
       }
-    }
 
-    return true;
-  });
+      // 6. Filter Date range
+      if (filterStartDate) {
+        const [y, m, d] = filterStartDate.split('-').map(Number);
+        const startTs = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+        if (log.timestamp < startTs) {
+          return false;
+        }
+      }
+
+      if (filterEndDate) {
+        const [y, m, d] = filterEndDate.split('-').map(Number);
+        const endTs = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+        if (log.timestamp > endTs) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [logs, locations, employees, searchQuery, filterType, filterStatus, filterLate, filterLocation, filterStartDate, filterEndDate]);
 
   // Export to Excel function
   const handleExportExcel = () => {
@@ -161,7 +255,7 @@ export default function AttendanceLogs() {
       const rows = filteredLogs.map((log, index) => {
         const d = new Date(log.timestamp);
         const dateFormatted = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const timeFormatted = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const timeFormatted = log.type === 'not_checked_in' ? 'Chưa Check-in' : d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         
         return {
           'STT': index + 1,
@@ -169,16 +263,16 @@ export default function AttendanceLogs() {
           'Họ Và Tên': log.employeeName || 'Chưa rõ',
           'Ngày Điểm Danh': dateFormatted,
           'Giờ Điểm Danh': timeFormatted,
-          'Loại Tác Vụ': log.type === 'checkin' ? 'Check-in' : 'Check-out',
-          'Ca Làm Việc': log.shift ? `Ca ${log.shift}` : 'Không rõ',
+          'Loại Tác Vụ': log.type === 'not_checked_in' ? 'Chưa Check-in' : (log.type === 'checkin' ? 'Check-in' : 'Check-out'),
+          'Ca Làm Việc': log.shift ? `Ca ${log.shift}` : (log.type === 'not_checked_in' ? 'Chưa Check-in' : 'Không rõ'),
           'Cơ Sở Ghi Nhận': log.locationName || 'Chưa rõ',
-          'Trạng Thái Vị Trí': log.status === 'success' ? 'Hợp lệ (Trong bán kính)' : 'Không hợp lệ (Ngoài bán kính)',
-          'Sai Lệch (m)': Math.round(log.distance),
-          'Tình Trạng Trễ': log.isLate ? 'Muộn ca' : 'Đúng giờ',
+          'Trạng Thái Vị Trí': log.type === 'not_checked_in' ? 'Chưa ghi nhận' : (log.status === 'success' ? 'Hợp lệ (Trong bán kính)' : 'Không hợp lệ (Ngoài bán kính)'),
+          'Sai Lệch (m)': log.type === 'not_checked_in' ? '' : Math.round(log.distance),
+          'Tình Trạng Trễ': log.type === 'not_checked_in' ? 'Chưa Check-in' : (log.isLate ? 'Muộn ca' : 'Đúng giờ'),
           'Lý Do Muộn': log.lateReason || '',
           'Điều Động Tạm Thời': log.isTemporary ? 'Có (Điều động)' : 'Không',
           'Ghi Chú Điều Động': log.note || '',
-          'Tọa Độ Ghi Nhận': `${log.latitude}, ${log.longitude}`
+          'Tọa Độ Ghi Nhận': log.type === 'not_checked_in' ? '' : `${log.latitude}, ${log.longitude}`
         };
       });
 
@@ -575,6 +669,7 @@ export default function AttendanceLogs() {
                 <option value="all">Tất cả Check-in / Check-out</option>
                 <option value="checkin">Chỉ Check-in</option>
                 <option value="checkout">Chỉ Check-out</option>
+                <option value="not_checked_in">Chưa Check-in</option>
               </select>
             </div>
 
@@ -637,8 +732,9 @@ export default function AttendanceLogs() {
               <tbody className="divide-y divide-slate-100">
                 {filteredLogs.map((log) => {
                   const isSuccess = log.status === 'success';
+                  const isNotCheckedIn = log.type === 'not_checked_in';
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={log.id} className={`hover:bg-slate-50 transition-colors ${isNotCheckedIn ? 'bg-rose-50/20' : ''}`}>
                       {/* Employee details */}
                       <td className="py-3.5 px-4">
                         <div className="font-extrabold text-slate-900 text-sm">
@@ -653,7 +749,7 @@ export default function AttendanceLogs() {
                       <td className="py-3.5 px-4 text-xs">
                         <div className="flex items-center gap-1.5 text-slate-650 font-mono">
                           <Clock className="h-3.5 w-3.5 text-slate-400" />
-                          <span>{formatDateTime(log.timestamp)}</span>
+                          <span>{isNotCheckedIn ? `Cả ngày ${new Date(log.timestamp).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}` : formatDateTime(log.timestamp)}</span>
                         </div>
                       </td>
 
@@ -668,7 +764,7 @@ export default function AttendanceLogs() {
                           )}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          {log.latitude.toFixed(5)}, {log.longitude.toFixed(5)}
+                          {isNotCheckedIn ? '-' : `${log.latitude.toFixed(5)}, ${log.longitude.toFixed(5)}`}
                         </div>
                         {log.isTemporary && log.note && (
                           <div className="text-[10px] text-indigo-600 font-semibold mt-0.5 max-w-[240px] leading-relaxed italic" title={log.note}>
@@ -681,13 +777,15 @@ export default function AttendanceLogs() {
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                            log.type === 'checkin'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                              : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                            isNotCheckedIn
+                              ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                              : log.type === 'checkin'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                           }`}>
-                            {log.type === 'checkin' ? 'Check-in' : 'Check-out'}
+                            {isNotCheckedIn ? 'Chưa Check-in' : log.type === 'checkin' ? 'Check-in' : 'Check-out'}
                           </span>
-                          {log.shift && (
+                          {log.shift && !isNotCheckedIn && (
                             <span className="inline-flex px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 text-[9px] font-bold rounded">
                               Ca {log.shift}
                             </span>
@@ -697,26 +795,42 @@ export default function AttendanceLogs() {
 
                       {/* Distance & validity */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          {isSuccess ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
-                          )}
-                          <div>
-                            <div className={`font-bold text-xs ${isSuccess ? 'text-slate-750' : 'text-red-655 font-black'}`}>
-                              Sai lệch: {formatDistance(log.distance)}
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              {isSuccess ? 'Trong bán kính' : 'Vượt quá bán kính'}
+                        {isNotCheckedIn ? (
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                            <div>
+                              <div className="font-extrabold text-xs text-rose-600">
+                                Chưa điểm danh
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                Không có bản ghi check-in
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {isSuccess ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+                            )}
+                            <div>
+                              <div className={`font-bold text-xs ${isSuccess ? 'text-slate-750' : 'text-red-655 font-black'}`}>
+                                Sai lệch: {formatDistance(log.distance)}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {isSuccess ? 'Trong bán kính' : 'Vượt quá bán kính'}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </td>
 
                       {/* Late Details */}
                       <td className="py-3.5 px-4">
-                        {log.isLate ? (
+                        {isNotCheckedIn ? (
+                          <span className="text-xs text-slate-400 italic">Vắng mặt</span>
+                        ) : log.isLate ? (
                           <div className="space-y-1">
                             <span className="inline-flex px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[9px] font-bold tracking-wider uppercase">
                               Muộn ca
