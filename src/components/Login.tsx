@@ -11,7 +11,16 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [role, setRole] = useState<'employee' | 'admin'>('employee');
   const [employeeCode, setEmployeeCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    const savedNotice = localStorage.getItem('profile_updated_notice');
+    if (savedNotice) {
+      setNotice(savedNotice);
+      localStorage.removeItem('profile_updated_notice');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +73,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             <Sparkles className="h-7 w-7 animate-pulse" id="login_logo" />
           </div>
           <h2 className="mt-5 text-3xl font-black tracking-tight text-slate-900">
-            TRUNG TÂM GIÁO DỤC VIỆT BẮC
+            CHẤM CÔNG VIỆT BẮC
           </h2>
           <p className="mt-2 text-xs font-medium text-slate-500 tracking-wide uppercase">
              Hệ thống điểm danh GPS thông minh
@@ -100,6 +109,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             Quản trị viên
           </button>
         </div>
+
+        {notice && (
+          <div id="login_notice" className="flex items-start gap-2.5 rounded-xl bg-emerald-50 p-3.5 text-xs text-emerald-800 border border-emerald-100">
+            <Sparkles className="h-4.5 w-4.5 shrink-0 mt-0.5 text-emerald-600" />
+            <span>{notice}</span>
+          </div>
+        )}
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-1">
