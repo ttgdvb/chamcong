@@ -377,12 +377,14 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
       const shiftMinutesTotal = shiftHour * 60 + shiftMin;
       const currentMinutesTotal = currentHour * 60 + currentMin;
 
-      if (currentMinutesTotal < shiftMinutesTotal - 15) {
-        const earliestHour = Math.floor((shiftMinutesTotal - 15) / 60);
-        const earliestMin = (shiftMinutesTotal - 15) % 60;
+      const buffer = assignedLoc?.checkinBufferMinutes !== undefined ? assignedLoc.checkinBufferMinutes : 15;
+
+      if (currentMinutesTotal < shiftMinutesTotal - buffer) {
+        const earliestHour = Math.floor((shiftMinutesTotal - buffer) / 60);
+        const earliestMin = (shiftMinutesTotal - buffer) % 60;
         const earliestTimeStr = `${String(earliestHour).padStart(2, '0')}:${String(earliestMin).padStart(2, '0')}`;
         setMsg({
-          text: `Không thể Check-in quá sớm! Bạn chỉ có thể Check-in ca ${selectedShift} từ lúc ${earliestTimeStr} (tối đa 15 phút trước giờ vào ca).`,
+          text: `Không thể Check-in quá sớm! Bạn chỉ có thể Check-in ca ${selectedShift} từ lúc ${earliestTimeStr} (tối đa ${buffer} phút trước giờ vào ca).`,
           isError: true
         });
         return;
