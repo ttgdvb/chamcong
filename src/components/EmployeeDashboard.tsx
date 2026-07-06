@@ -103,21 +103,14 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
 
       await updateEmployeeProfile(employee.id, updatedEmployee);
 
-      if (onUserUpdate) {
-        onUserUpdate(updatedEmployee);
-      }
+      // Lưu thông báo yêu cầu đăng nhập lại vào localStorage
+      localStorage.setItem(
+        'profile_updated_notice',
+        'Cập nhật thông tin cá nhân thành công! Vui lòng đăng nhập lại bằng thông tin mới.'
+      );
 
-      setShowProfileModal(false);
-      setMsg({
-        text: 'Cập nhật thông tin đăng nhập thành công!',
-        isError: false,
-      });
-
-      // If ID changed, we also should refresh logs using the new ID
-      if (employee.id !== updatedEmployee.id) {
-        const logData = await getLogsForEmployee(updatedEmployee.id);
-        setLogs(logData);
-      }
+      // Tự động đăng xuất để tránh nhầm lẫn dữ liệu/ca làm việc
+      onLogout();
     } catch (err: any) {
       console.error(err);
       setProfileError(err.message || 'Đã xảy ra lỗi khi lưu thông tin.');
