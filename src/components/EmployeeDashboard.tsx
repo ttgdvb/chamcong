@@ -104,14 +104,14 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
 
       await updateEmployeeProfile(employee.id, updatedEmployee);
 
-      // Lưu thông báo yêu cầu đăng nhập lại vào localStorage
-      localStorage.setItem(
-        'profile_updated_notice',
-        'Cập nhật thông tin cá nhân thành công! Vui lòng đăng nhập lại bằng thông tin mới.'
-      );
+      // Cập nhật thông tin người dùng trực tiếp lên App.tsx để hiển thị thay đổi ngay lập tức mà không cần logout hay load lại trang
+      if (onUserUpdate) {
+        onUserUpdate(updatedEmployee);
+      }
 
-      // Tự động đăng xuất để tránh nhầm lẫn dữ liệu/ca làm việc
-      onLogout();
+      // Đóng modal và hiển thị thông báo thành công
+      setShowProfileModal(false);
+      setMsg({ text: 'Cập nhật thông tin cá nhân thành công!', isError: false });
     } catch (err: any) {
       console.error(err);
       setProfileError(err.message || 'Đã xảy ra lỗi khi lưu thông tin.');
@@ -122,7 +122,7 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
 
   useEffect(() => {
     fetchInitialData();
-  }, []);
+  }, [employee.id]);
 
   const fetchInitialData = async () => {
     setLoading(true);
@@ -1066,7 +1066,7 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
               onClick={() => setShowEarlyCheckoutModal(false)}
               className="w-full py-2.5 bg-rose-600 hover:bg-rose-550 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/10 transition-all cursor-pointer active:scale-98"
             >
-              Đồng ý !!!
+              Em biết rồi ạ
             </button>
           </div>
         </div>
