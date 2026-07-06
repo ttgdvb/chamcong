@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckinLog, Location, Employee } from '../types';
-import { getAllLogs, getAllLocations, getAllEmployees } from '../lib/firebase';
+import { getAllLogs, getAllLocations, getAllEmployees, db, LOCATIONS_COLLECTION, EMPLOYEES_COLLECTION, CHECKIN_LOGS_COLLECTION, handleFirestoreError, OperationType } from '../lib/firebase';
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { Calendar, Filter, Search, Clock, MapPin, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import { formatDistance } from '../lib/geo';
 import * as XLSX from 'xlsx';
@@ -29,7 +30,65 @@ export default function AttendanceLogs() {
   const [filterEndDate, setFilterEndDate] = useState<string>(getTodayISO());
 
   useEffect(() => {
-    fetchLogs();
+    setLoading(true);
+    let logsLoaded = false;
+    let locationsLoaded = false;
+    let employeesLoaded = false;
+
+    const checkLoaded = () => {
+      if (logsLoaded && locationsLoaded && employeesLoaded) {
+        setLoading(false);
+      }
+    };
+
+    // Đăng ký nhận cập nhật thời gian thực cho lịch sử chấm công
+    const qLogs = query(collection(db, CHECKIN_LOGS_COLLECTION), orderBy('timestamp', 'desc'));
+    const unsubscribeLogs = onSnapshot(
+      qLogs,
+      (snapshot) => {
+        const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CheckinLog));
+        setLogs(logsData);
+        logsLoaded = true;
+        checkLoaded();
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.LIST, CHECKIN_LOGS_COLLECTION);
+      }
+    );
+
+    // Đăng ký nhận cập nhật thời gian thực cho danh sách cơ sở
+    const unsubscribeLocations = onSnapshot(
+      collection(db, LOCATIONS_COLLECTION),
+      (snapshot) => {
+        const locationsData = snapshot.docs.map(doc => doc.data() as Location);
+        setLocations(locationsData);
+        locationsLoaded = true;
+        checkLoaded();
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.LIST, LOCATIONS_COLLECTION);
+      }
+    );
+
+    // Đăng ký nhận cập nhật thời gian thực cho danh sách nhân viên
+    const unsubscribeEmployees = onSnapshot(
+      collection(db, EMPLOYEES_COLLECTION),
+      (snapshot) => {
+        const employeesData = snapshot.docs.map(doc => doc.data() as Employee);
+        setEmployees(employeesData);
+        employeesLoaded = true;
+        checkLoaded();
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.LIST, EMPLOYEES_COLLECTION);
+      }
+    );
+
+    return () => {
+      unsubscribeLogs();
+      unsubscribeLocations();
+      unsubscribeEmployees();
+    };
   }, []);
 
   const fetchLogs = async () => {
