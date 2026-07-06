@@ -70,6 +70,7 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
 
   // Profile edit modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showEarlyCheckoutModal, setShowEarlyCheckoutModal] = useState(false);
   const [editFullName, setEditFullName] = useState(employee.fullName);
   const [editEmployeeId, setEditEmployeeId] = useState(employee.id);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -350,6 +351,21 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
         isError: true
       });
       return;
+    }
+
+    if (type === 'checkout') {
+      const [shiftHour, shiftMin] = selectedShift.split(':').map(Number);
+      const shiftStartToday = new Date();
+      shiftStartToday.setHours(shiftHour, shiftMin, 0, 0);
+      const fortyFiveMinsInMs = 45 * 60 * 1000;
+
+      const nowTime = Date.now();
+      const isTooEarlyForCheckout = nowTime < (shiftStartToday.getTime() + fortyFiveMinsInMs);
+
+      if (isTooEarlyForCheckout) {
+        setShowEarlyCheckoutModal(true);
+        return;
+      }
     }
 
     if (type === 'checkin') {
@@ -1022,6 +1038,40 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
           </div>
         </div>
       )}
+      {/* Early Checkout Warning Modal */}
+      {showEarlyCheckoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <div 
+            className="absolute inset-0" 
+            onClick={() => setShowEarlyCheckoutModal(false)}
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-red-100 p-6 z-10 text-center space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full border border-rose-100 flex items-center justify-center mx-auto shadow-sm shadow-rose-500/10">
+              <AlertTriangle className="h-10 w-10 animate-bounce" />
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-base font-black text-rose-700 uppercase tracking-tight">Cảnh báo Check-out sớm</h3>
+              <p className="text-sm text-slate-750 font-bold leading-relaxed px-2">
+                Check-out sớm quá, chưa làm việc đã check out rồi thế thầy/cô !!!
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 text-xs text-slate-500 font-medium leading-relaxed">
+              * Quy định: Nhân sự chỉ được phép Check-out sau giờ bắt đầu ca làm ít nhất <strong className="text-indigo-650 font-extrabold">45 phút</strong>. Vui lòng quay lại làm việc thêm trước khi thực hiện Check-out!
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowEarlyCheckoutModal(false)}
+              className="w-full py-2.5 bg-rose-600 hover:bg-rose-550 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/10 transition-all cursor-pointer active:scale-98"
+            >
+              Em biết rồi ạ
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Profile Edit Modal Dialogue */}
       {showProfileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
