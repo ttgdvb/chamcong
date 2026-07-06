@@ -1066,7 +1066,7 @@ export default function EmployeeDashboard({ employee, onLogout, onUserUpdate }: 
               onClick={() => setShowEarlyCheckoutModal(false)}
               className="w-full py-2.5 bg-rose-600 hover:bg-rose-550 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/10 transition-all cursor-pointer active:scale-98"
             >
-              Em biết rồi ạ
+              Đồng ý !!!
             </button>
           </div>
         </div>
